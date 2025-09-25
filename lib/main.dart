@@ -43,6 +43,7 @@ class DoseHomePage extends StatefulWidget {
 }
 
 class TaskData {
+
   String title;
   String location;
   int workers;
@@ -60,6 +61,7 @@ class TaskData {
 
   // Persistent controllers so cursor/selection behavior remains stable
   final TextEditingController titleController = TextEditingController();
+  final FocusNode titleFocusNode = FocusNode();
   final TextEditingController locationController = TextEditingController();
   final TextEditingController workersController = TextEditingController();
   final TextEditingController hoursController = TextEditingController();
@@ -123,6 +125,7 @@ class TaskData {
 
   void disposeControllers() {
     titleController.dispose();
+    titleFocusNode.dispose();
     locationController.dispose();
     workersController.dispose();
     hoursController.dispose();
@@ -248,7 +251,7 @@ class _GradientPainter extends BoxPainter {
     // Draw a subtle shadow first (use sigma ~= blurRadius / 2)
     final shadowSigma = (blurRadius / 2.0).clamp(0.0, 30.0);
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.08)
+  ..color = Color.fromRGBO(0, 0, 0, 0.08)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma);
     canvas.drawRRect(rrect.shift(const Offset(0, 2)), shadowPaint);
 
@@ -367,6 +370,14 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       tasks.add(data ?? TaskData());
       tabController = TabController(length: tasks.length + 1, vsync: this);
       tabController.index = tasks.length; // switch to new task tab
+    });
+    // Request focus on the new task title after frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (tasks.isNotEmpty) {
+        try {
+          tasks.last.titleFocusNode.requestFocus();
+        } catch (_) {}
+      }
     });
   }
 
@@ -603,7 +614,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     };
     final jsonStr = jsonEncode(state);
     await Clipboard.setData(ClipboardData(text: jsonStr));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State copied to clipboard (JSON).')));
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State copied to clipboard (JSON).')));
   }
 
   void importStateFromClipboard() async {
@@ -624,9 +635,9 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         triggerOverrides = Map<String, bool>.from(state['triggerOverrides'] ?? {});
         tabController = TabController(length: tasks.length + 1, vsync: this);
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State loaded from clipboard.')));
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State loaded from clipboard.')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to parse JSON: $e')));
+  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to parse JSON: $e')));
     }
   }
 
@@ -634,8 +645,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     double totalIndividualEffective = 0.0;
     double totalIndividualExtremity = 0.0;
     final rows = <TableRow>[];
-  final triggers = computeGlobalTriggers();
-  final reasons = computeTriggerReasons();
+    final triggers = computeGlobalTriggers();
 
     if (tasks.isEmpty) {
       return const Padding(
@@ -754,7 +764,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     final tabs = <Tab>[const Tab(text: 'Summary')];
-    tabs.addAll(List.generate(tasks.length, (i) => Tab(text: 'Task ${i + 1}')));
+    tabs.addAll(List.generate(tasks.length, (i) {
+      final t = tasks[i];
+      final label = (t.title.trim().isEmpty) ? 'Task ${i + 1}' : 'Task ${i + 1}: ${t.title}';
+      return Tab(text: label);
+    }));
 
     return Scaffold(
       appBar: AppBar(
@@ -764,11 +778,6 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           IconButton(onPressed: importStateFromClipboard, icon: const Icon(Icons.upload)),
           IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => addTask(),
-        label: const Text('Add New Task'),
-        icon: const Icon(Icons.add),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -780,7 +789,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               decoration: BoxDecoration(
                 gradient: const LinearGradient(colors: [Color(0xFF0066CC), Color(0xFF00AA88)]),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 4))],
+                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 8, offset: const Offset(0, 4))],
               ),
               padding: const EdgeInsets.all(12.0),
               child: Column(
@@ -805,13 +814,13 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.12)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 6))],
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha((0.12*255).round())),
+                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.08), blurRadius: 10, offset: const Offset(0, 6))],
               ),
               padding: const EdgeInsets.all(8.0),
-              child: Column(children: [
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 // Inner elevated TabBar with rounded, raised indicator
-                Padding(
+                      Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6.0),
                   child: PhysicalModel(
                     color: Theme.of(context).colorScheme.surface,
@@ -820,19 +829,53 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-                      child: TabBar(
-                        controller: tabController,
-                        isScrollable: true,
-                        labelColor: Theme.of(context).colorScheme.onPrimary,
-                        unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
-                        // roomy padding so indicator forms a pill larger than the text
-                        indicatorPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        indicator: GradientTabIndicator(
-                          radius: 16,
-                          blurRadius: 8,
-                          gradient: LinearGradient(colors: [Colors.white.withOpacity(0.18), Theme.of(context).colorScheme.primary.withOpacity(0.28)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-                        ),
-                        tabs: tabs.map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0), child: t)).toList(),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(children: [
+                          // The TabBar sizes to its content so it participates in the scrollable row
+                          TabBar(
+                            controller: tabController,
+                            isScrollable: true,
+                            labelColor: Theme.of(context).colorScheme.onPrimary,
+                            unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
+                            // roomy padding so indicator forms a pill larger than the text
+                            indicatorPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            indicator: GradientTabIndicator(
+                              radius: 16,
+                              blurRadius: 8,
+                              gradient: LinearGradient(colors: [Color.fromRGBO(255,255,255,0.18), Theme.of(context).colorScheme.primary.withAlpha((0.28*255).round())], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                            ),
+                            tabs: tabs.map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0), child: t)).toList(),
+                          ),
+                          const SizedBox(width: 6),
+                          // Add Task pill sits immediately after the last tab in the scroll content
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () {
+                                  addTask();
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    try {
+                                      tabController.animateTo(tasks.length);
+                                    } catch (_) {}
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(colors: [Color.fromRGBO(255,255,255,0.18), Theme.of(context).colorScheme.primary.withAlpha((0.28*255).round())], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [BoxShadow(color: Color.fromRGBO(0,0,0,0.06), blurRadius: 6, offset: const Offset(0,2))],
+                                  ),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: const [Icon(Icons.add, size: 18, color: Colors.white), SizedBox(width: 8), Text('Add Task', style: TextStyle(color: Colors.white))]),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ]),
                       ),
                     ),
                   ),
@@ -953,7 +996,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               padding: const EdgeInsets.all(12.0),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
-                  Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Task Title'), controller: t.titleController, onChanged: (v) { setState(() {}); })),
+                  Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Task Title'), controller: t.titleController, focusNode: t.titleFocusNode, autofocus: t.titleController.text.isEmpty, onChanged: (v) { setState(() {}); })),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(onPressed: () => removeTask(index), icon: const Icon(Icons.delete), label: const Text('Remove Task'))
                 ]),
@@ -990,9 +1033,9 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 padding: const EdgeInsets.all(12.0),
                 child: Column(children: [
                   Row(children: [
-                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifR, decoration: const InputDecoration(labelText: 'Release Factor (R)'), items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifR = v ?? t.mpifR; setState(() {}); })),
+                    Expanded(child: DropdownButtonFormField<double>(initialValue: t.mpifR, decoration: const InputDecoration(labelText: 'Release Factor (R)'), items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifR = v ?? t.mpifR; setState(() {}); })),
                     const SizedBox(width: 12),
-                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifC, decoration: const InputDecoration(labelText: 'Confinement Factor (C)'), items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifC = v ?? t.mpifC; setState(() {}); })),
+                    Expanded(child: DropdownButtonFormField<double>(initialValue: t.mpifC, decoration: const InputDecoration(labelText: 'Confinement Factor (C)'), items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifC = v ?? t.mpifC; setState(() {}); })),
                   ]),
                   const SizedBox(height: 12),
                   Row(children: [
@@ -1038,7 +1081,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                   Column(children: List.generate(t.extremities.length, (ei) {
                     final e = t.extremities[ei];
                       return Row(children: [
-                        Expanded(child: DropdownButtonFormField<String>(value: e.nuclide, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { e.nuclide = v ?? e.nuclide; setState(() {}); })),
+                        Expanded(child: DropdownButtonFormField<String>(initialValue: e.nuclide, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { e.nuclide = v ?? e.nuclide; setState(() {}); })),
                       const SizedBox(width: 8),
                       Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() {}); })),
                       const SizedBox(width: 8),
@@ -1097,7 +1140,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     final nuclideIndividual = t.workers > 0 ? nuclideDose / t.workers : 0;
                     return Column(children: [
                       Row(children: [
-                        Expanded(child: DropdownButtonFormField<String>(value: n.name, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { n.name = v ?? n.name; setState(() {}); })),
+                        Expanded(child: DropdownButtonFormField<String>(initialValue: n.name, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { n.name = v ?? n.name; setState(() {}); })),
                         const SizedBox(width: 8),
                         Expanded(child: TextField(
                           decoration: const InputDecoration(labelText: 'Contam. (dpm/100cm²)'),
