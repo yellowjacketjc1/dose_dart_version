@@ -1,0 +1,1194 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+void main() {
+  runApp(const DoseEstimateApp());
+}
+
+class DoseEstimateApp extends StatelessWidget {
+  const DoseEstimateApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'RPP-742 Dose Estimate',
+      theme: ThemeData(
+        colorSchemeSeed: const Color(0xFF0066CC),
+        brightness: Brightness.light,
+        useMaterial3: true,
+        elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0066CC), foregroundColor: Colors.white)),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(backgroundColor: Color(0xFF00AA88)),
+        chipTheme: ChipThemeData(backgroundColor: const Color(0xFFEDF7FF), labelStyle: const TextStyle(color: Color(0xFF003366))),
+        // Use an outlined style for TextFields to give more definition
+        inputDecorationTheme: InputDecorationTheme(
+          filled: false,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: Colors.grey.shade400)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: const Color(0xFF0066CC), width: 2.0)),
+          labelStyle: const TextStyle(color: Colors.black87),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
+        ),
+      ),
+      home: const DoseHomePage(),
+    );
+  }
+}
+
+class DoseHomePage extends StatefulWidget {
+  const DoseHomePage({super.key});
+
+  @override
+  State<DoseHomePage> createState() => _DoseHomePageState();
+}
+
+class TaskData {
+  String title;
+  String location;
+  int workers;
+  double hours;
+  double mpifR;
+  double mpifC;
+  double mpifD;
+  double mpifS;
+  double mpifU;
+  double doseRate;
+  double pfr;
+  double pfe;
+  List<NuclideEntry> nuclides;
+  List<ExtremityEntry> extremities;
+
+  // Persistent controllers so cursor/selection behavior remains stable
+  final TextEditingController titleController = TextEditingController();
+  final TextEditingController locationController = TextEditingController();
+  final TextEditingController workersController = TextEditingController();
+  final TextEditingController hoursController = TextEditingController();
+  final TextEditingController mpifDController = TextEditingController();
+  final TextEditingController mpifSController = TextEditingController();
+  final TextEditingController mpifUController = TextEditingController();
+  final TextEditingController doseRateController = TextEditingController();
+
+  TaskData({
+    this.title = '',
+    this.location = '',
+    this.workers = 1,
+    this.hours = 1.0,
+    this.mpifR = 1.0,
+    this.mpifC = 100.0,
+    this.mpifD = 1.0,
+    this.mpifS = 1.0,
+    this.mpifU = 1.0,
+    this.doseRate = 0.0,
+    this.pfr = 1.0,
+    this.pfe = 1.0,
+    List<NuclideEntry>? nuclides,
+    List<ExtremityEntry>? extremities,
+  })  : nuclides = nuclides ?? [NuclideEntry()],
+        extremities = extremities ?? [] {
+    titleController.text = title;
+    locationController.text = location;
+    workersController.text = workers.toString();
+    hoursController.text = hours.toString();
+    mpifDController.text = mpifD.toString();
+    mpifSController.text = mpifS.toString();
+    mpifUController.text = mpifU.toString();
+    doseRateController.text = doseRate.toString();
+
+    // keep model fields in sync with controllers
+    titleController.addListener(() {
+      title = titleController.text;
+    });
+    locationController.addListener(() {
+      location = locationController.text;
+    });
+    workersController.addListener(() {
+      workers = int.tryParse(workersController.text) ?? 1;
+    });
+    hoursController.addListener(() {
+      hours = double.tryParse(hoursController.text) ?? 0.0;
+    });
+    mpifDController.addListener(() {
+      mpifD = double.tryParse(mpifDController.text) ?? 1.0;
+    });
+    mpifSController.addListener(() {
+      mpifS = double.tryParse(mpifSController.text) ?? 1.0;
+    });
+    mpifUController.addListener(() {
+      mpifU = double.tryParse(mpifUController.text) ?? 1.0;
+    });
+    doseRateController.addListener(() {
+      doseRate = double.tryParse(doseRateController.text) ?? 0.0;
+    });
+  }
+
+  void disposeControllers() {
+    titleController.dispose();
+    locationController.dispose();
+    workersController.dispose();
+    hoursController.dispose();
+    mpifDController.dispose();
+    mpifSController.dispose();
+    mpifUController.dispose();
+    doseRateController.dispose();
+    for (final n in nuclides) {
+      n.disposeControllers();
+    }
+    for (final e in extremities) {
+      e.disposeControllers();
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'location': location,
+        'workers': workers,
+        'hours': hours,
+        'mpifR': mpifR,
+        'mpifC': mpifC,
+        'mpifD': mpifD,
+        'mpifS': mpifS,
+        'mpifU': mpifU,
+        'doseRate': doseRate,
+        'pfr': pfr,
+        'pfe': pfe,
+        'nuclides': nuclides.map((n) => n.toJson()).toList(),
+        'extremities': extremities.map((e) => e.toJson()).toList(),
+      };
+
+  static TaskData fromJson(Map<String, dynamic> j) {
+    return TaskData(
+      title: j['title'] ?? '',
+      location: j['location'] ?? '',
+      workers: j['workers'] ?? 1,
+      hours: (j['hours'] ?? 1).toDouble(),
+      mpifR: (j['mpifR'] ?? 1).toDouble(),
+      mpifC: (j['mpifC'] ?? 100).toDouble(),
+      mpifD: (j['mpifD'] ?? 1).toDouble(),
+      mpifS: (j['mpifS'] ?? 1).toDouble(),
+      mpifU: (j['mpifU'] ?? 1).toDouble(),
+      doseRate: (j['doseRate'] ?? 0).toDouble(),
+      pfr: (j['pfr'] ?? 1).toDouble(),
+      pfe: (j['pfe'] ?? 1).toDouble(),
+      nuclides: (j['nuclides'] as List? ?? []).map((e) => NuclideEntry.fromJson(e)).toList(),
+      extremities: (j['extremities'] as List? ?? []).map((e) => ExtremityEntry.fromJson(e)).toList(),
+    );
+  }
+}
+
+class NuclideEntry {
+  String name;
+  double contam; // dpm/100cm2
+  final TextEditingController contamController = TextEditingController();
+
+  NuclideEntry({this.name = 'Other', this.contam = 0.0}) {
+    contamController.text = contam.toString();
+    contamController.addListener(() {
+      final parsed = double.tryParse(contamController.text);
+      if (parsed != null) {
+        contam = parsed;
+      }
+    });
+  }
+
+  Map<String, dynamic> toJson() => {'name': name, 'contam': contam};
+  static NuclideEntry fromJson(Map<String, dynamic> j) => NuclideEntry(name: j['name'] ?? 'Other', contam: (j['contam'] ?? 0).toDouble());
+
+  void disposeControllers() {
+    contamController.dispose();
+  }
+}
+
+class ExtremityEntry {
+  String nuclide;
+  double doseRate;
+  double time;
+  final TextEditingController doseRateController = TextEditingController();
+  final TextEditingController timeController = TextEditingController();
+  ExtremityEntry({this.nuclide = 'Other', this.doseRate = 0.0, this.time = 0.0});
+  Map<String, dynamic> toJson() => {'nuclide': nuclide, 'doseRate': doseRate, 'time': time};
+  static ExtremityEntry fromJson(Map<String, dynamic> j) => ExtremityEntry(nuclide: j['nuclide'] ?? 'Other', doseRate: (j['doseRate'] ?? 0).toDouble(), time: (j['time'] ?? 0).toDouble());
+
+  void disposeControllers() {
+    doseRateController.dispose();
+    timeController.dispose();
+  }
+}
+
+// Top-level Decoration that paints a rounded gradient 'frosted' indicator for tabs.
+class GradientTabIndicator extends Decoration {
+  final double radius;
+  final Gradient gradient;
+  final double blurRadius;
+  /// blurRadius is used only for the shadow; the main pill is painted sharply so it stands out.
+  const GradientTabIndicator({this.radius = 12.0, required this.gradient, this.blurRadius = 8.0});
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) => _GradientPainter(radius: radius, gradient: gradient, blurRadius: blurRadius);
+}
+
+class _GradientPainter extends BoxPainter {
+  final double radius;
+  final Gradient gradient;
+  final double blurRadius;
+
+  _GradientPainter({required this.radius, required this.gradient, required this.blurRadius});
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size ?? Size.zero;
+    if (size.isEmpty) return;
+    final rect = offset & size;
+
+    // Make the pill slightly larger than the provided rect so it reads as a 'pill' behind the label.
+    const extraHorizontal = 8.0;
+    const extraVertical = 6.0;
+    final paddedRect = Rect.fromLTRB(rect.left - extraHorizontal, rect.top - extraVertical, rect.right + extraHorizontal, rect.bottom + extraVertical);
+    final rrect = RRect.fromRectAndRadius(paddedRect, Radius.circular(radius));
+
+    // Draw a subtle shadow first (use sigma ~= blurRadius / 2)
+    final shadowSigma = (blurRadius / 2.0).clamp(0.0, 30.0);
+    final shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.08)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma);
+    canvas.drawRRect(rrect.shift(const Offset(0, 2)), shadowPaint);
+
+    // Fill the pill with the provided gradient (sharp edges so it stands out).
+    final fillPaint = Paint()..shader = gradient.createShader(paddedRect);
+    canvas.drawRRect(rrect, fillPaint);
+  }
+}
+class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMixin {
+  final Map<String, double> dacValues = const {
+    "Ac-227": 3e-13, "Ag-108m": 5e-8, "Ag-110m": 3e-8, "Al-26": 2e-9, "Am-241": 5e-12, "Am-243": 5e-12,
+    "Ar-37": 4e-5, "Ar-39": 3e-6, "Ar-41": 3e-6, "As-73": 6e-7, "As-74": 2e-7, "As-76": 2e-7, "As-77": 7e-7,
+    "At-211": 2e-9, "Au-195": 2e-6, "Au-198": 2e-7, "Au-199": 3e-7, "Ba-131": 3e-7, "Ba-133": 2e-7, "Ba-140": 4e-8,
+    "Be-7": 2e-6, "Be-10": 2e-8, "Bi-206": 3e-8, "Bi-207": 4e-8, "Bi-210": 2e-9, "Bi-212": 6e-8, "Bk-249": 2e-9,
+    "Br-82": 3e-7, "C-11": 4e-6, "C-14": 2e-7, "Ca-41": 6e-7, "Ca-45": 9e-9, "Ca-47": 9e-8, "Cd-109": 8e-8,
+    "Cd-113m": 2e-8, "Cd-115": 3e-7, "Cd-115m": 9e-8, "Ce-139": 2e-7, "Ce-141": 1e-7, "Ce-143": 1e-7, "Ce-144": 2e-9,
+    "Cf-249": 3e-12, "Cf-250": 6e-12, "Cf-251": 3e-12, "Cf-252": 2e-11, "Cl-36": 2e-8, "Cl-38": 2e-6, "Cm-242": 2e-11,
+    "Cm-243": 6e-12, "Cm-244": 8e-12, "Cm-245": 5e-12, "Cm-246": 5e-12, "Cm-247": 5e-12, "Cm-248": 2e-12,
+    "Co-56": 1e-7, "Co-57": 4e-7, "Co-58": 2e-7, "Co-58m": 1e-5, "Co-60": 3e-9, "Co-60m": 3e-4, "Cr-51": 3e-6,
+    "Cs-129": 3e-6, "Cs-131": 1e-6, "Cs-134": 2e-8, "Cs-134m": 5e-5, "Cs-135": 3e-7, "Cs-136": 4e-8, "Cs-137": 8e-8,
+    "Cu-64": 6e-7, "Cu-67": 3e-7, "Dy-159": 8e-7, "Dy-165": 9e-7, "Dy-166": 3e-8, "Er-169": 1e-6, "Er-171": 4e-7,
+    "Eu-152": 6e-9, "Eu-152m": 6e-7, "Eu-154": 5e-9, "Eu-155": 5e-7, "F-18": 1e-6, "Fe-52": 2e-7, "Fe-55": 2e-6,
+    "Fe-59": 3e-8, "Ga-67": 1e-6, "Ga-68": 1e-6, "Ga-72": 4e-7, "Gd-146": 4e-8, "Gd-148": 2e-12, "Gd-149": 8e-7,
+    "Gd-151": 2e-7, "Gd-153": 6e-7, "Gd-159": 3e-7, "Ge-68": 2e-7, "Ge-71": 2e-5, "H-3": 2e-5, "Hf-172": 1e-8,
+    "Hf-175": 2e-7, "Hf-181": 7e-8, "Hg-197": 1e-6, "Hg-197m": 3e-7, "Hg-203": 2e-7, "Ho-166": 3e-8, "I-123": 6e-8,
+    "I-124": 1e-8, "I-125": 4e-9, "I-126": 2e-9, "I-129": 6e-9, "I-131": 2e-8, "I-132": 8e-7, "I-133": 7e-8,
+    "I-134": 2e-6, "I-135": 3e-7, "In-111": 5e-7, "In-113m": 2e-6, "In-114m": 2e-8, "In-115m": 1e-6, "Ir-190": 2e-7,
+    "Ir-192": 2e-8, "Ir-194": 1e-7, "K-40": 3e-8, "K-42": 3e-6, "K-43": 6e-7, "Kr-74": 2e-6, "Kr-76": 8e-7,
+    "Kr-77": 2e-6, "Kr-79": 4e-6, "Kr-81": 4e-5, "Kr-81m": 2e-4, "Kr-83m": 5e-4, "Kr-85": 1e-4, "Kr-85m": 3e-5,
+    "Kr-87": 8e-6, "Kr-88": 2e-6, "La-137": 3e-7, "La-140": 2e-7, "Lu-172": 6e-8, "Lu-173": 2e-7, "Lu-174": 3e-7,
+    "Lu-174m": 2e-7, "Lu-177": 6e-7, "Mn-52": 1e-7, "Mn-53": 5e-6, "Mn-54": 3e-7, "Mn-56": 1e-6, "Mo-93": 3e-7,
+    "Mo-99": 2e-7, "N-13": 9e-6, "Na-22": 2e-8, "Na-24": 3e-7, "Nb-93m": 5e-6, "Nb-94": 2e-9, "Nb-95": 2e-7,
+    "Nb-97": 9e-7, "Nd-144": 2e-12, "Nd-147": 2e-7, "Nd-149": 6e-7, "Ni-56": 2e-7, "Ni-57": 3e-7, "Ni-59": 2e-6,
+    "Ni-63": 2e-7, "Ni-65": 5e-7, "Np-235": 2e-6, "Np-236": 2e-9, "Np-237": 5e-12, "Np-239": 3e-7, "O-15": 2e-6,
+    "Os-185": 7e-7, "Os-191": 3e-7, "Os-191m": 4e-6, "Os-193": 2e-7, "P-32": 9e-9, "P-33": 5e-7, "Pa-230": 2e-8,
+    "Pa-231": 2e-12, "Pa-233": 2e-7, "Pb-203": 6e-7, "Pb-210": 1e-10, "Pb-212": 8e-10, "Pd-103": 3e-6, "Pd-107": 1e-5,
+    "Pd-109": 1e-6, "Pm-143": 2e-7, "Pm-144": 3e-8, "Pm-145": 3e-7, "Pm-147": 3e-7, "Pm-148": 3e-8, "Pm-148m": 4e-8,
+    "Pm-149": 4e-7, "Pm-151": 5e-7, "Po-208": 3e-11, "Po-209": 2e-11, "Po-210": 4e-11, "Pr-142": 1e-7, "Pr-143": 2e-7,
+    "Pt-191": 3e-7, "Pt-193": 1e-5, "Pt-193m": 1e-6, "Pt-195m": 6e-7, "Pt-197": 6e-7, "Pt-197m": 1e-6, "Pu-236": 2e-11,
+    "Pu-237": 3e-6, "Pu-238": 7e-12, "Pu-239": 6e-12, "Pu-240": 6e-12, "Pu-241": 3e-10, "Pu-242": 6e-12, "Pu-244": 6e-12,
+    "Ra-223": 9e-11, "Ra-224": 4e-11, "Ra-225": 8e-11, "Ra-226": 3e-11, "Ra-228": 3e-11, "Rb-81": 2e-6, "Rb-82": 6e-6,
+    "Rb-83": 2e-6, "Rb-84": 1e-7, "Rb-86": 2e-8, "Rb-87": 3e-7, "Rb-88": 4e-6, "Re-184": 1e-7, "Re-184m": 3e-7,
+    "Re-186": 1e-6, "Re-187": 9e-6, "Re-188": 4e-7, "Re-189": 5e-7, "Rh-99": 9e-7, "Rh-101": 4e-7, "Rh-102": 1e-7,
+    "Rh-102m": 2e-7, "Rh-103m": 1e-4, "Rh-105": 1e-6, "Rn-220": 3e-8, "Rn-222": 3e-8, "Ru-97": 5e-7, "Ru-103": 3e-7,
+    "Ru-105": 5e-7, "Ru-106": 3e-9, "S-35": 2e-7, "Sb-122": 3e-7, "Sb-124": 1e-7, "Sb-125": 2e-7, "Sb-126": 2e-8,
+    "Sc-44": 4e-7, "Sc-44m": 2e-7, "Sc-46": 1e-7, "Sc-47": 3e-7, "Sc-48": 1e-7, "Se-72": 3e-7, "Se-73": 4e-7,
+    "Se-75": 2e-7, "Se-79": 2e-6, "Si-31": 9e-7, "Si-32": 3e-8, "Sm-145": 3e-7, "Sm-147": 2e-11, "Sm-151": 3e-6,
+    "Sm-153": 5e-7, "Sn-113": 2e-7, "Sn-117m": 2e-7, "Sn-119m": 4e-7, "Sn-121": 2e-6, "Sn-121m": 2e-7, "Sn-123": 8e-8,
+    "Sn-125": 1e-7, "Sn-126": 1e-8, "Sr-82": 2e-7, "Sr-85": 3e-7, "Sr-85m": 1e-5, "Sr-87m": 3e-5, "Sr-89": 3e-8,
+    "Sr-90": 9e-9, "Sr-91": 3e-7, "Sr-92": 1e-6, "Ta-178": 1e-7, "Ta-179": 3e-7, "Ta-182": 4e-8, "Tb-157": 2e-7,
+    "Tb-158": 5e-9, "Tb-160": 4e-8, "Tc-94": 1e-6, "Tc-94m": 2e-6, "Tc-95": 1e-6, "Tc-95m": 6e-7, "Tc-96": 2e-7,
+    "Tc-96m": 1e-5, "Tc-97": 4e-6, "Tc-97m": 1e-6, "Tc-98": 8e-9, "Tc-99": 2e-6, "Tc-99m": 2e-5, "Te-121": 2e-6,
+    "Te-121m": 2e-7, "Te-123": 5e-7, "Te-123m": 2e-7, "Te-125m": 3e-7, "Te-127": 7e-7, "Te-127m": 1e-7, "Te-129": 7e-7,
+    "Te-129m": 8e-8, "Te-131": 4e-7, "Te-131m": 1e-7, "Te-132": 2e-7, "Th-227": 8e-12, "Th-228": 2e-12, "Th-229": 5e-13,
+    "Th-230": 7e-13, "Th-231": 4e-7, "Th-232": 3e-13, "Th-234": 3e-9, "Ti-44": 2e-9, "Tl-200": 9e-7, "Tl-201": 1e-6,
+    "Tl-202": 3e-7, "Tl-204": 2e-7, "Tm-167": 7e-7, "Tm-170": 2e-7, "Tm-171": 8e-7, "U-230": 3e-11, "U-232": 1e-11,
+    "U-233": 9e-11, "U-234": 1e-10, "U-235": 8e-11, "U-236": 1e-10, "U-237": 7e-7, "U-238": 1e-10, "U-239": 5e-7,
+    "U-240": 3e-7, "V-48": 2e-7, "V-49": 1e-5, "W-178": 9e-6, "W-181": 8e-6, "W-185": 8e-7, "W-187": 2e-6, "W-188": 3e-7,
+    "Xe-122": 4e-7, "Xe-123": 2e-7, "Xe-125": 3e-7, "Xe-127": 4e-7, "Xe-129m": 4e-6, "Xe-131m": 1e-5, "Xe-133": 3e-5,
+    "Xe-133m": 1e-5, "Xe-135": 1e-5, "Xe-135m": 2e-5, "Xe-138": 1e-5, "Y-86": 1e-7, "Y-87": 2e-7, "Y-88": 1e-7,
+    "Y-90": 2e-8, "Y-91": 2e-8, "Y-91m": 2e-5, "Y-92": 2e-7, "Y-93": 1e-7, "Yb-169": 2e-7, "Yb-175": 9e-7,
+    "Zn-62": 2e-7, "Zn-63": 9e-7, "Zn-65": 1e-7, "Zn-69": 6e-6, "Zn-69m": 3e-7, "Zr-88": 3e-7, "Zr-89": 1e-7,
+    "Zr-93": 5e-8, "Zr-95": 1e-7, "Zr-97": 2e-7, "Other": 2e-13
+  };
+
+  final Map<String, double> releaseFactors = const {
+    'Gases, volatile liquids (1.0)': 1.0,
+    'Nonvolatile powders, some liquids (0.1)': 0.1,
+    'Liquids, large area contamination (0.01)': 0.01,
+    'Solids, spotty contamination (0.001)': 0.001,
+    'Encapsulated material (0)': 0
+  };
+
+  final Map<String, double> confinementFactors = const {
+    'None - Open bench (100)': 100,
+    'Bagged material (10)': 10,
+    'Fume Hood (1.0)': 1.0,
+    'Enhanced Fume Hood (0.1)': 0.1,
+    'Glovebox, Hot Cell (0.01)': 0.01
+  };
+
+  List<TaskData> tasks = [];
+  TextEditingController workOrderController = TextEditingController();
+  TextEditingController descriptionController = TextEditingController();
+  TextEditingController dateController = TextEditingController();
+  // user overrides for trigger checkboxes
+  Map<String, bool> triggerOverrides = {};
+
+  late TabController tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    tabController = TabController(length: 1, vsync: this);
+    tasks = [];
+  }
+
+  // A lightweight Decoration for a gradient/frosted tab indicator.
+  // It paints a rounded rectangle with a subtle gradient and shadow behind the active tab.
+  // (GradientTabIndicator moved to top-level to avoid nested class declaration errors.)
+
+  @override
+  void dispose() {
+    workOrderController.dispose();
+    descriptionController.dispose();
+    dateController.dispose();
+    for (final t in tasks) {
+      t.disposeControllers();
+    }
+    tabController.dispose();
+    super.dispose();
+  }
+
+  void addTask([TaskData? data]) {
+    setState(() {
+      tasks.add(data ?? TaskData());
+      tabController = TabController(length: tasks.length + 1, vsync: this);
+      tabController.index = tasks.length; // switch to new task tab
+    });
+  }
+
+  void removeTask(int index) {
+    setState(() {
+      // dispose controllers for the task being removed
+      tasks[index].disposeControllers();
+      tasks.removeAt(index);
+      tabController = TabController(length: tasks.length + 1, vsync: this);
+      tabController.index = 0;
+    });
+  }
+
+  double computeMPIF(TaskData t) {
+    final mPIF = 1e-6 * t.mpifR * t.mpifC * t.mpifD * 1 * t.mpifS * t.mpifU;
+    return mPIF;
+  }
+
+  // Calculate task totals similar to the JS version
+  Map<String, double> calculateTaskTotals(TaskData t) {
+    final workers = t.workers > 0 ? t.workers : 1;
+    final hours = t.hours;
+    final personHours = workers * hours;
+    final mPIF = computeMPIF(t);
+
+    double totalDacFraction = 0.0;
+    double totalCollectiveInternal = 0.0;
+
+    for (final n in t.nuclides) {
+      final contam = n.contam; // dpm/100cm2
+      final dac = dacValues[n.name] ?? 1e-12;
+      final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
+      final dacFractionRaw = (airConc / dac);
+      final dacFraction = dacFractionRaw / t.pfe;
+      final nuclideDose = dacFraction * (personHours / 2000) * 5000 / t.pfr;
+      totalDacFraction += dacFraction;
+      totalCollectiveInternal += nuclideDose;
+    }
+
+    final collectiveExternal = t.doseRate * personHours;
+    final collectiveEffective = collectiveExternal + totalCollectiveInternal;
+    final individualEffective = collectiveEffective / workers;
+
+    double totalExtremityDose = 0.0;
+    for (final e in t.extremities) {
+      totalExtremityDose += e.doseRate * e.time;
+    }
+
+    return {
+      'personHours': personHours,
+      'mPIF': mPIF,
+      'totalDacFraction': totalDacFraction,
+      'collectiveInternal': totalCollectiveInternal,
+      'collectiveExternal': collectiveExternal,
+      'collectiveEffective': collectiveEffective,
+      'individualEffective': individualEffective,
+      'totalExtremityDose': totalExtremityDose,
+    };
+  }
+
+  /// Compute global ALARA and air-sampling triggers across all tasks.
+  Map<String, dynamic> computeGlobalTriggers() {
+    double totalIndividualEffectiveDose = 0.0;
+    double totalIndividualExtremityDose = 0.0;
+    double totalCollectiveDose = 0.0;
+
+    double maxDacHrsWithResp = 0.0;
+    double maxDacSpikeEngOnly = 0.0;
+    double maxDacHrsEngOnly = 0.0;
+    double maxContamination = 0.0;
+    double maxDoseRate = 0.0;
+
+    for (final t in tasks) {
+      final totals = calculateTaskTotals(t);
+      final workers = t.workers > 0 ? t.workers : 1;
+      final individualExternal = (totals['collectiveExternal']! / workers);
+      final individualInternal = (totals['collectiveInternal']! / workers);
+      totalIndividualEffectiveDose += individualExternal + individualInternal;
+      totalIndividualExtremityDose += totals['totalExtremityDose']! / workers;
+      totalCollectiveDose += totals['collectiveEffective']!;
+
+      maxDoseRate = maxDoseRate > t.doseRate ? maxDoseRate : t.doseRate;
+
+      double taskDacWithResp = 0.0;
+      double taskDacEngOnly = 0.0;
+
+      for (final n in t.nuclides) {
+        final contam = n.contam;
+        final dac = dacValues[n.name] ?? 1e-12;
+        final mPIF = computeMPIF(t);
+        final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
+        final dacFractionWithBoth = (airConc / dac) / (t.pfe * t.pfr);
+        final dacFractionEngOnly = (airConc / dac) / t.pfe;
+
+        taskDacWithResp += dacFractionWithBoth;
+        taskDacEngOnly += dacFractionEngOnly;
+
+        maxContamination = maxContamination > (contam / 1000) ? maxContamination : (contam / 1000);
+        maxDacSpikeEngOnly = maxDacSpikeEngOnly > taskDacEngOnly ? maxDacSpikeEngOnly : taskDacEngOnly;
+      }
+
+      final dacHrsWithResp = taskDacWithResp * t.hours;
+      maxDacHrsWithResp = maxDacHrsWithResp > dacHrsWithResp ? maxDacHrsWithResp : dacHrsWithResp;
+
+      final dacHrsEngOnly = taskDacEngOnly * t.hours;
+      maxDacHrsEngOnly = maxDacHrsEngOnly > dacHrsEngOnly ? maxDacHrsEngOnly : dacHrsEngOnly;
+    }
+
+    // derive individual trigger booleans similar to the original HTML logic
+    final alara2 = totalIndividualEffectiveDose > 500;
+    final alara3 = totalIndividualExtremityDose > 5000;
+    final alara4 = totalCollectiveDose > 750;
+    final alara5 = maxDacHrsEngOnly > 200 || maxDacSpikeEngOnly > 1000;
+    final alara6 = maxContamination > 1;
+    final alara8 = maxDoseRate > 10000;
+
+    // calculate internal-only totals for alara7
+    double totalInternalDoseOnly = 0.0;
+    for (final t in tasks) {
+      final totals = calculateTaskTotals(t);
+      final workers = t.workers > 0 ? t.workers : 1;
+      final individualInternal = (totals['collectiveInternal']! / workers);
+      totalInternalDoseOnly += individualInternal;
+    }
+    final alara7 = totalInternalDoseOnly > 100;
+
+    final alara1 = tasks.isNotEmpty; // approximate: non-routine/complex work if tasks present (left for user)
+
+    final sampling1 = maxDacHrsWithResp > 40;
+    final sampling2 = tasks.any((t) => t.pfr > 1);
+    final sampling3 = false; // subjective, left for user to check
+    final sampling4 = tasks.any((t) {
+      final totals = calculateTaskTotals(t);
+      final workers = t.workers > 0 ? t.workers : 1;
+      final individualInternal = (totals['collectiveInternal']! / workers);
+      return individualInternal > 500;
+    });
+    final condition1 = (maxDacHrsEngOnly / 40) > 0.3;
+    final condition2 = maxDacSpikeEngOnly > 1.0;
+    final sampling5 = condition1 || condition2;
+    final sampling7 = sampling5;
+    final sampling6 = false; // subjective job-based triggers left unchecked automatically
+
+    final camsRequired = maxDacHrsWithResp > 40;
+
+    // Aggregate some higher-level flags used by the UI
+    final alaraReview = alara1 || alara2 || alara3 || alara4 || alara5 || alara6 || alara7 || alara8;
+    final airSampling = sampling1 || sampling2 || sampling3 || sampling4 || sampling5 || sampling6 || sampling7;
+
+    return {
+      'alara1': alara1,
+      'alara2': alara2,
+      'alara3': alara3,
+      'alara4': alara4,
+      'alara5': alara5,
+      'alara6': alara6,
+      'alara7': alara7,
+      'alara8': alara8,
+      'sampling1': sampling1,
+      'sampling2': sampling2,
+      'sampling3': sampling3,
+      'sampling4': sampling4,
+      'sampling5': sampling5,
+      'sampling6': sampling6,
+      'sampling7': sampling7,
+      'camsRequired': camsRequired,
+      'alaraReview': alaraReview,
+      'airSampling': airSampling,
+      'totalIndividualEffectiveDose': totalIndividualEffectiveDose,
+      'totalIndividualExtremityDose': totalIndividualExtremityDose,
+      'totalCollectiveDose': totalCollectiveDose,
+    };
+  }
+
+  // Return short textual reasons for why each trigger was set (task numbers and brief reason)
+  Map<String, String> computeTriggerReasons() {
+    final reasons = <String, String>{};
+    if (tasks.isEmpty) return reasons;
+
+    // Check for sampling1/cams (DAC-hrs > 40 with resp protection taken into account)
+    for (var i = 0; i < tasks.length; i++) {
+      final t = tasks[i];
+      final totals = calculateTaskTotals(t);
+      final workers = t.workers > 0 ? t.workers : 1;
+      // compute per-nuclide DAC fraction with both protections
+      double taskDacWithResp = 0.0;
+      double taskDacEngOnly = 0.0;
+      for (final n in t.nuclides) {
+        final contam = n.contam;
+        final dac = dacValues[n.name] ?? 1e-12;
+        final mPIF = computeMPIF(t);
+        final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
+        final dacWithBoth = (airConc / dac) / (t.pfe * t.pfr);
+        final dacEngOnly = (airConc / dac) / t.pfe;
+        taskDacWithResp += dacWithBoth;
+        taskDacEngOnly += dacEngOnly;
+      }
+      final dacHrsWithResp = taskDacWithResp * t.hours;
+      final dacHrsEngOnly = taskDacEngOnly * t.hours;
+
+      if (dacHrsWithResp > 40) {
+        reasons['sampling1'] = 'Task ${i + 1} (> ${dacHrsWithResp.toStringAsFixed(2)} DAC-hrs)';
+        reasons['camsRequired'] = 'Task ${i + 1} (> ${dacHrsWithResp.toStringAsFixed(2)} DAC-hrs)';
+      }
+      if (dacHrsEngOnly / 40 > 0.3) {
+        reasons['sampling5'] = 'Task ${i + 1} (avg ${ (dacHrsEngOnly/40).toStringAsFixed(2)} DAC)';
+      }
+      if (taskDacEngOnly > 1.0) {
+        reasons['sampling5'] = (reasons['sampling5'] ?? '') + ' spike by Task ${i + 1}';
+      }
+
+      // alara triggers
+      if ((totals['individualEffective'] ?? 0) > 500) reasons['alara2'] = 'Task ${i + 1} individual effective > 500 mrem';
+      if ((totals['totalExtremityDose'] ?? 0) / (t.workers > 0 ? t.workers : 1) > 5000) reasons['alara3'] = 'Task ${i + 1} extremity > 5000 mrem';
+      if ((totals['collectiveEffective'] ?? 0) > 750) reasons['alara4'] = 'Task ${i + 1} collective > 750 mrem';
+      if (taskDacEngOnly * t.hours > 200) reasons['alara5'] = 'Task ${i + 1} DAC-hrs eng-only > 200';
+      if (t.nuclides.any((n) => n.contam / 1000 > 1)) reasons['alara6'] = 'Task ${i + 1} contamination > 1000x Appendix D';
+      if ((totals['collectiveInternal'] ?? 0) / (t.workers > 0 ? t.workers : 1) > 100) reasons['alara7'] = 'Task ${i + 1} internal > 100 mrem';
+      if (t.doseRate > 10000) reasons['alara8'] = 'Task ${i + 1} dose rate > 10 rem/hr';
+    }
+
+    return reasons;
+  }
+
+  void exportState() async {
+    final state = {
+      'projectInfo': {
+        'workOrder': workOrderController.text,
+        'date': dateController.text,
+        'description': descriptionController.text,
+      },
+      'tasks': tasks.map((t) => t.toJson()).toList(),
+      'triggerOverrides': triggerOverrides,
+    };
+    final jsonStr = jsonEncode(state);
+    await Clipboard.setData(ClipboardData(text: jsonStr));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State copied to clipboard (JSON).')));
+  }
+
+  void importStateFromClipboard() async {
+    final data = await Clipboard.getData('text/plain');
+    if (data == null || data.text == null) return;
+    try {
+      final Map<String, dynamic> state = jsonDecode(data.text!);
+      setState(() {
+        workOrderController.text = state['projectInfo']?['workOrder'] ?? '';
+        dateController.text = state['projectInfo']?['date'] ?? '';
+        descriptionController.text = state['projectInfo']?['description'] ?? '';
+        // dispose existing task controllers first
+        for (final tt in tasks) {
+          tt.disposeControllers();
+        }
+        tasks = (state['tasks'] as List? ?? []).map((t) => TaskData.fromJson(t)).toList();
+        // load trigger overrides if present
+        triggerOverrides = Map<String, bool>.from(state['triggerOverrides'] ?? {});
+        tabController = TabController(length: tasks.length + 1, vsync: this);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State loaded from clipboard.')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to parse JSON: $e')));
+    }
+  }
+
+  Widget buildSummary() {
+    double totalIndividualEffective = 0.0;
+    double totalIndividualExtremity = 0.0;
+    final rows = <TableRow>[];
+  final triggers = computeGlobalTriggers();
+  final reasons = computeTriggerReasons();
+
+    if (tasks.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(24.0),
+        child: Text('No tasks added.'),
+      );
+    }
+
+    for (final t in tasks) {
+      final totals = calculateTaskTotals(t);
+      final workers = t.workers > 0 ? t.workers : 1;
+      final individualExternal = (totals['collectiveExternal']! / workers);
+      final individualInternal = (totals['collectiveInternal']! / workers);
+      final individualTotal = individualExternal + individualInternal;
+      totalIndividualEffective += individualTotal;
+      totalIndividualExtremity += totals['totalExtremityDose']! / (workers);
+
+      rows.add(TableRow(children: [
+        Padding(padding: const EdgeInsets.all(8), child: Text(t.title)),
+        Padding(padding: const EdgeInsets.all(8), child: Text(t.location)),
+        Padding(padding: const EdgeInsets.all(8), child: Text('${t.workers}')),
+        Padding(padding: const EdgeInsets.all(8), child: Text(totals['totalDacFraction']!.toStringAsExponential(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text(individualExternal.toStringAsFixed(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text(individualInternal.toStringAsExponential(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text((totals['totalExtremityDose']! / workers).toStringAsFixed(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text(totals['collectiveExternal']!.toStringAsFixed(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text(totals['collectiveInternal']!.toStringAsExponential(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text(individualTotal.toStringAsFixed(2))),
+      ]));
+    }
+
+    // Build a list of small cards for each task to show key dose numbers prominently
+    final taskCards = tasks.asMap().entries.map((entry) {
+      final i = entry.key;
+      final t = entry.value;
+      final totals = calculateTaskTotals(t);
+      final workers = t.workers > 0 ? t.workers : 1;
+      final indExternal = (totals['collectiveExternal']! / workers);
+      final indInternal = (totals['collectiveInternal']! / workers);
+      final indExtremity = (totals['totalExtremityDose']! / workers);
+      final indTotal = indExternal + indInternal;
+
+      return Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          width: 220,
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Task ${i + 1}: ${t.title}', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Ind. External', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(indExternal.toStringAsFixed(2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Ind. Internal', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(indInternal.toStringAsExponential(2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ]),
+            ]),
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Extremity', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(indExtremity.toStringAsFixed(2), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Total Ind.', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(indTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.blueAccent)),
+              ]),
+            ])
+          ]),
+        ),
+      );
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Triggers appear at the top of the summary page only
+        buildTriggers(),
+        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        Card(
+          color: Colors.blue.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(children: [
+              Text('Total Estimated Effective Dose Per Individual (mrem): ${totalIndividualEffective.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('Total Estimated Extremity Dose Per Individual (mrem): ${totalIndividualExtremity.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                Chip(label: Text('ALARA Review Required: ${triggers['alaraReview'] == true ? 'Yes' : 'No'}')),
+                Chip(label: Text('Air Sampling Required: ${triggers['airSampling'] == true ? 'Yes' : 'No'}')),
+                Chip(label: Text('CAMs Required: ${triggers['camsRequired'] == true ? 'Yes' : 'No'}')),
+              ])
+            ]),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Per-task cards moved here (bottom of the summary)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            const SizedBox(width: 4),
+            ...taskCards.map((c) => Padding(padding: const EdgeInsets.only(right: 8.0), child: c)),
+            const SizedBox(width: 4),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = <Tab>[const Tab(text: 'Summary')];
+    tabs.addAll(List.generate(tasks.length, (i) => Tab(text: 'Task ${i + 1}')));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('RPP-742 Task-Based Dose Assessment'),
+        actions: [
+          IconButton(onPressed: exportState, icon: const Icon(Icons.save)),
+          IconButton(onPressed: importStateFromClipboard, icon: const Icon(Icons.upload)),
+          IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => addTask(),
+        label: const Text('Add New Task'),
+        icon: const Icon(Icons.add),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Persistent Project Info header (always visible) — colorful gradient
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF0066CC), Color(0xFF00AA88)]),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8, offset: const Offset(0, 4))],
+              ),
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Project Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                  const SizedBox(height: 8),
+                  TextField(controller: workOrderController, decoration: const InputDecoration(labelText: 'Work Control Document Number'), style: const TextStyle(color: Colors.white)),
+                  const SizedBox(height: 8),
+                  TextField(controller: dateController, decoration: const InputDecoration(labelText: 'Date'), style: const TextStyle(color: Colors.white)),
+                  const SizedBox(height: 8),
+                  TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Work Description'), maxLines: 3, style: const TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Triggers moved into the Summary tab only
+
+            // Tab area centered inside a rounded Card with lively accents
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.12)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 6))],
+              ),
+              padding: const EdgeInsets.all(8.0),
+              child: Column(children: [
+                // Inner elevated TabBar with rounded, raised indicator
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                  child: PhysicalModel(
+                    color: Theme.of(context).colorScheme.surface,
+                    elevation: 8,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                      child: TabBar(
+                        controller: tabController,
+                        isScrollable: true,
+                        labelColor: Theme.of(context).colorScheme.onPrimary,
+                        unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
+                        // roomy padding so indicator forms a pill larger than the text
+                        indicatorPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        indicator: GradientTabIndicator(
+                          radius: 16,
+                          blurRadius: 8,
+                          gradient: LinearGradient(colors: [Colors.white.withOpacity(0.18), Theme.of(context).colorScheme.primary.withOpacity(0.28)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                        ),
+                        tabs: tabs.map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0), child: t)).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.65,
+                  child: TabBarView(
+                    controller: tabController,
+                    children: [
+                      // Summary tab
+                      SingleChildScrollView(padding: const EdgeInsets.all(12), child: buildSummary()),
+                      // Task tabs
+                      for (var i = 0; i < tasks.length; i++) buildTaskTab(i),
+                    ],
+                  ),
+                )
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildTriggers() {
+    final triggers = computeGlobalTriggers();
+    final reasons = computeTriggerReasons();
+    // Build ALARA card and Air Sampling card similar to original HTML checklist
+    return Column(children: [
+      Card(
+        color: Colors.blue.shade50,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Workplace Air Sampling Triggers', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              value: triggerOverrides.containsKey('sampling1') ? triggerOverrides['sampling1']! : (triggers['sampling1'] ?? false),
+              onChanged: (v) { setState(() { triggerOverrides['sampling1'] = v ?? false; }); },
+              title: const Text('Worker likely to exceed 40 DAC-hours per year (air sampling required)'),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            if (reasons.containsKey('sampling1')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling1']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(
+              value: triggerOverrides.containsKey('sampling2') ? triggerOverrides['sampling2']! : (triggers['sampling2'] ?? false),
+              onChanged: (v) { setState(() { triggerOverrides['sampling2'] = v ?? false; }); },
+              title: const Text('Respiratory protection prescribed (air sampling required)'), controlAffinity: ListTileControlAffinity.leading,
+            ),
+            if (reasons.containsKey('sampling2')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling2']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(
+              value: triggerOverrides.containsKey('sampling3') ? triggerOverrides['sampling3']! : (triggers['sampling3'] ?? false),
+              onChanged: (v) { setState(() { triggerOverrides['sampling3'] = v ?? false; }); },
+              title: const Text('Air sample needed to estimate internal dose'), controlAffinity: ListTileControlAffinity.leading,
+            ),
+            if (reasons.containsKey('sampling3')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling3']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(
+              value: triggerOverrides.containsKey('sampling4') ? triggerOverrides['sampling4']! : (triggers['sampling4'] ?? false),
+              onChanged: (v) { setState(() { triggerOverrides['sampling4'] = v ?? false; }); },
+              title: const Text('Estimated intake > 10% ALI or 500 mrem'), controlAffinity: ListTileControlAffinity.leading,
+            ),
+            if (reasons.containsKey('sampling4')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling4']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(
+              value: triggerOverrides.containsKey('sampling5') ? triggerOverrides['sampling5']! : (triggers['sampling5'] ?? false),
+              onChanged: (v) { setState(() { triggerOverrides['sampling5'] = v ?? false; }); },
+              title: const Text('Airborne concentration > 0.3 DAC averaged over 40 hr or >1 DAC spike'), controlAffinity: ListTileControlAffinity.leading,
+            ),
+            if (reasons.containsKey('sampling5')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling5']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(
+              value: triggerOverrides.containsKey('camsRequired') ? triggerOverrides['camsRequired']! : (triggers['camsRequired'] ?? false),
+              onChanged: (v) { setState(() { triggerOverrides['camsRequired'] = v ?? false; }); },
+              title: const Text('CAMs required (worker > 40 DAC-hrs in week)'), controlAffinity: ListTileControlAffinity.leading,
+            ),
+            if (reasons.containsKey('camsRequired')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['camsRequired']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        color: Colors.orange.shade50,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('ALARA Trigger Review', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara1') ? triggerOverrides['alara1']! : (triggers['alara1'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara1'] = v ?? false; }); }, title: const Text('Non-routine or complex work'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara1')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara1']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara2') ? triggerOverrides['alara2']! : (triggers['alara2'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara2'] = v ?? false; }); }, title: const Text('Estimated individual total effective dose > 500 mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara2')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara2']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara3') ? triggerOverrides['alara3']! : (triggers['alara3'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara3'] = v ?? false; }); }, title: const Text('Estimated individual extremity/skin dose > 5000 mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara3')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara3']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara4') ? triggerOverrides['alara4']! : (triggers['alara4'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara4'] = v ?? false; }); }, title: const Text('Collective dose > 750 person-mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara4')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara4']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara5') ? triggerOverrides['alara5']! : (triggers['alara5'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara5'] = v ?? false; }); }, title: const Text('Airborne >200 DAC averaged over 1 hr or spike >1000 DAC'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara5')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara5']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara6') ? triggerOverrides['alara6']! : (triggers['alara6'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara6'] = v ?? false; }); }, title: const Text('Removable contamination > 1000x Appendix D levels'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara6')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara6']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara7') ? triggerOverrides['alara7']! : (triggers['alara7'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara7'] = v ?? false; }); }, title: const Text('Worker likely to receive internal dose >100 mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara7')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara7']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            CheckboxListTile(value: triggerOverrides.containsKey('alara8') ? triggerOverrides['alara8']! : (triggers['alara8'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara8'] = v ?? false; }); }, title: const Text('Entry into areas with dose rates > 10 rem/hr at 30 cm'), controlAffinity: ListTileControlAffinity.leading),
+            if (reasons.containsKey('alara8')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara8']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
+  Widget buildTaskTab(int index) {
+    final t = tasks[index];
+    final totals = calculateTaskTotals(t);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Row(children: [
+                  Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Task Title'), controller: t.titleController, onChanged: (v) { setState(() {}); })),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(onPressed: () => removeTask(index), icon: const Icon(Icons.delete), label: const Text('Remove Task'))
+                ]),
+                const SizedBox(height: 8),
+                TextField(decoration: const InputDecoration(labelText: 'Location'), controller: t.locationController, onChanged: (v) { setState(() {}); }),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Time Estimation
+          Card(
+            child: ExpansionTile(title: const Text('Time Estimation'), initiallyExpanded: true, children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(children: [
+                  Row(children: [
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: '# Workers'), keyboardType: TextInputType.number, controller: t.workersController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Hours Each'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.hoursController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Person-Hours: ${calculateTaskTotals(t)['personHours']!.toStringAsFixed(2)}'))
+                  ])
+                ]),
+              )
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+
+          Card(
+            child: ExpansionTile(title: const Text('mPIF Calculation'), children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(children: [
+                  Row(children: [
+                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifR, decoration: const InputDecoration(labelText: 'Release Factor (R)'), items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifR = v ?? t.mpifR; setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifC, decoration: const InputDecoration(labelText: 'Confinement Factor (C)'), items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifC = v ?? t.mpifC; setState(() {}); })),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dispersibility (D)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.mpifDController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Special Form (S)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.mpifSController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Uncertainty (U)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.mpifUController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('mPIF: ${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}'))
+                  ])
+                ]),
+              )
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+
+          Card(
+            child: ExpansionTile(title: const Text('External Dose Estimate'), children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(children: [
+                  Row(children: [
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.doseRateController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Person-Hours: ${totals['personHours']!.toStringAsFixed(2)}')),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Collective External: ${totals['collectiveExternal']!.toStringAsFixed(2)}')),
+                  ])
+                ]),
+              )
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+
+          Card(
+            child: ExpansionTile(title: const Text('Extremity/Skin Dose Estimate'), children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(children: [
+                  Column(children: List.generate(t.extremities.length, (ei) {
+                    final e = t.extremities[ei];
+                      return Row(children: [
+                        Expanded(child: DropdownButtonFormField<String>(value: e.nuclide, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { e.nuclide = v ?? e.nuclide; setState(() {}); })),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() {}); })),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Time (hr)'), controller: e.timeController, onChanged: (v) { setState(() {}); })),
+                      IconButton(onPressed: () { setState(() { e.disposeControllers(); t.extremities.removeAt(ei); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
+                    ]);
+                  })),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(onPressed: () { setState(() { t.extremities.add(ExtremityEntry()); }); }, icon: const Icon(Icons.add), label: const Text('Add Extremity Dose')),
+                  const SizedBox(height: 8),
+                  Text('Total Extremity Dose (this task): ${totals['totalExtremityDose']!.toStringAsFixed(2)}')
+                ]),
+              )
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+
+          Card(
+            child: ExpansionTile(title: const Text('Protection Factors (For this task)'), children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Respiratory (PFR)'),
+                    RadioListTile<double>(value: 1, groupValue: t.pfr, title: const Text('None (PFR=1)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                    RadioListTile<double>(value: 50, groupValue: t.pfr, title: const Text('APR (PFR=50)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                    RadioListTile<double>(value: 1000, groupValue: t.pfr, title: const Text('PAPR (PFR=1000)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                  ])),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Engineering (PFE)'),
+                    RadioListTile<double>(value: 1, groupValue: t.pfe, title: const Text('No Controls (PFE=1)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                    RadioListTile<double>(value: 1000, groupValue: t.pfe, title: const Text('Type I (PFE=1,000)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                    RadioListTile<double>(value: 100000, groupValue: t.pfe, title: const Text('Type II (PFE=100,000)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                  ])),
+                ]),
+              )
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+
+          Card(
+            child: ExpansionTile(title: const Text('Internal Dose Calculation'), children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(children: [
+                  Column(children: List.generate(t.nuclides.length, (ni) {
+                    final n = t.nuclides[ni];
+                    final dac = dacValues[n.name] ?? 1e-12;
+                    final airConc = (n.contam / 100) * computeMPIF(t) * (1 / 100) * (1 / 2.22e6);
+                    final dacFractionRaw = (airConc / dac);
+                    final dacFraction = dacFractionRaw / t.pfe;
+                    final nuclideDose = dacFraction * ((t.workers * t.hours) / 2000) * 5000 / t.pfr;
+                    final nuclideIndividual = t.workers > 0 ? nuclideDose / t.workers : 0;
+                    return Column(children: [
+                      Row(children: [
+                        Expanded(child: DropdownButtonFormField<String>(value: n.name, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { n.name = v ?? n.name; setState(() {}); })),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(
+                          decoration: const InputDecoration(labelText: 'Contam. (dpm/100cm²)'),
+                          controller: n.contamController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            // allow digits, decimal point, exponent notation (e/E) and signs
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9eE+\-\.]')),
+                          ],
+                          onChanged: (v) { setState(() {}); },
+                        )),
+                        IconButton(onPressed: () { setState(() { n.disposeControllers(); t.nuclides.removeAt(ni); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
+                      ]),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(children: [
+                          Expanded(child: Text('DAC: ${dac.toStringAsExponential(2)}')),
+                          Expanded(child: Text('DAC Fraction: ${dacFraction.toStringAsExponential(2)}')),
+                          Expanded(child: Text('Ind. Int Dose: ${nuclideIndividual.toStringAsExponential(2)}')),
+                          Expanded(child: Text('Coll. Int Dose: ${nuclideDose.toStringAsExponential(2)}')),
+                        ]),
+                      ),
+                      const Divider()
+                    ]);
+                  })),
+                  ElevatedButton.icon(onPressed: () { setState(() { t.nuclides.add(NuclideEntry()); }); }, icon: const Icon(Icons.add), label: const Text('Add Nuclide')),
+                ]),
+              )
+            ]),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Prominent per-task totals displayed as three compact cards for visual emphasis
+          Row(children: [
+            Expanded(
+              child: Card(
+                color: Colors.blue.shade50,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Collective Effective', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    const SizedBox(height: 6),
+                    Text(totals['collectiveEffective']!.toStringAsFixed(2), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                    const SizedBox(height: 4),
+                    Text('(mrem)', style: TextStyle(fontSize: 11, color: Colors.black45)),
+                  ]),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Card(
+                color: Colors.green.shade50,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Individual Effective', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    const SizedBox(height: 6),
+                    Text(totals['individualEffective']!.toStringAsFixed(2), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                    const SizedBox(height: 4),
+                    Text('(mrem per person)', style: TextStyle(fontSize: 11, color: Colors.black45)),
+                  ]),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Card(
+                color: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Individual Extremity', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    const SizedBox(height: 6),
+                    Text(totals['totalExtremityDose']!.toStringAsFixed(2), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                    const SizedBox(height: 4),
+                    Text('(mrem per person)', style: TextStyle(fontSize: 11, color: Colors.black45)),
+                  ]),
+                ),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
