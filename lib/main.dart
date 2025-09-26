@@ -823,37 +823,213 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Triggers appear at the top of the summary page only
-        buildTriggers(),
-        const SizedBox(height: 12),
-        const SizedBox(height: 16),
-        Card(
-          color: Theme.of(context).colorScheme.primary.withAlpha((0.02*255).round()),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(children: [
-              Text('Total Estimated Effective Dose Per Individual (mrem): ${totalIndividualEffective.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('Total Estimated Extremity Dose Per Individual (mrem): ${totalIndividualExtremity.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                Chip(label: Text('ALARA Review Required: ${triggers['alaraReview'] == true ? 'Yes' : 'No'}')),
-                Chip(label: Text('Air Sampling Required: ${triggers['airSampling'] == true ? 'Yes' : 'No'}')),
-                Chip(label: Text('CAMs Required: ${triggers['camsRequired'] == true ? 'Yes' : 'No'}')),
-              ])
+        // Task summary cards first with enhanced styling
+        if (taskCards.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade600,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Task Summary Cards',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              const SizedBox(width: 4),
+              ...taskCards.map((c) => Padding(padding: const EdgeInsets.only(right: 12.0), child: c)),
+              const SizedBox(width: 4),
             ]),
           ),
-        ),
-        const SizedBox(height: 12),
-        // Per-task cards moved here (bottom of the summary)
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            const SizedBox(width: 4),
-            ...taskCards.map((c) => Padding(padding: const EdgeInsets.only(right: 8.0), child: c)),
-            const SizedBox(width: 4),
+          const SizedBox(height: 24),
+        ],
+
+        // Overall dose summary at the bottom with enhanced design
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.teal.shade200, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade600,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Overall Dose Summary',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: Card(
+                color: Colors.green.shade50,
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Effective Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                      const SizedBox(height: 4),
+                      Text('${totalIndividualEffective.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
+                      const SizedBox(height: 2),
+                      const Text('(mrem per person)', style: TextStyle(fontSize: 10, color: Colors.black45)),
+                    ],
+                  ),
+                ),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: Card(
+                color: Colors.orange.shade50,
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Extremity Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                      const SizedBox(height: 4),
+                      Text('${totalIndividualExtremity.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.orange)),
+                      const SizedBox(height: 2),
+                      const Text('(mrem per person)', style: TextStyle(fontSize: 10, color: Colors.black45)),
+                    ],
+                  ),
+                ),
+              )),
+            ]),
           ]),
         ),
+        const SizedBox(height: 20),
+
+        // Separate trigger cards for ALARA/CAMs/Air Sampling
+        Row(children: [
+          Expanded(child: Card(
+            color: triggers['alaraReview'] == true ? Colors.red.shade50 : Colors.grey.shade100,
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Icon(
+                    triggers['alaraReview'] == true ? Icons.check_circle : Icons.close,
+                    color: triggers['alaraReview'] == true ? Colors.red : Colors.grey.shade600,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'ALARA Review',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: triggers['alaraReview'] == true ? Colors.red.shade700 : Colors.grey.shade700,
+                    ),
+                  ),
+                  Text(
+                    triggers['alaraReview'] == true ? 'Required' : 'Not Required',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: triggers['alaraReview'] == true ? Colors.red.shade600 : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: Card(
+            color: triggers['airSampling'] == true ? Colors.red.shade50 : Colors.grey.shade100,
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Icon(
+                    triggers['airSampling'] == true ? Icons.check_circle : Icons.close,
+                    color: triggers['airSampling'] == true ? Colors.red : Colors.grey.shade600,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Air Sampling',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: triggers['airSampling'] == true ? Colors.red.shade700 : Colors.grey.shade700,
+                    ),
+                  ),
+                  Text(
+                    triggers['airSampling'] == true ? 'Required' : 'Not Required',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: triggers['airSampling'] == true ? Colors.red.shade600 : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: Card(
+            color: triggers['camsRequired'] == true ? Colors.red.shade50 : Colors.grey.shade100,
+            elevation: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Icon(
+                    triggers['camsRequired'] == true ? Icons.check_circle : Icons.close,
+                    color: triggers['camsRequired'] == true ? Colors.red : Colors.grey.shade600,
+                    size: 24,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'CAMs',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: triggers['camsRequired'] == true ? Colors.red.shade700 : Colors.grey.shade700,
+                    ),
+                  ),
+                  Text(
+                    triggers['camsRequired'] == true ? 'Required' : 'Not Required',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: triggers['camsRequired'] == true ? Colors.red.shade600 : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )),
+        ]),
+        const SizedBox(height: 16),
+
+        // Detailed triggers section at the bottom
+        buildTriggers(),
       ],
     );
   }
@@ -907,27 +1083,81 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Persistent Project Info header — emphasized with a faint tint, border and shadow
+            // Enhanced Project Info card with modern styling to match result cards
             Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withAlpha((0.03*255).round()),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha((0.18*255).round())),
-                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.06), blurRadius: 8, offset: const Offset(0, 6))],
+                color: Colors.blueGrey.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blueGrey.shade200, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blueGrey.withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.8),
+                    blurRadius: 1,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Project Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                  const SizedBox(height: 8),
-                  TextField(controller: workOrderController, decoration: const InputDecoration(labelText: 'Work Control Document Number'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.shade600,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Project Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: workOrderController,
+                    decoration: InputDecoration(
+                      labelText: 'Work Control Document Number',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                      ),
+                    ),
+                    style: TextStyle(color: Colors.blueGrey.shade700),
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: dateController,
-                    decoration: const InputDecoration(labelText: 'Date', suffixIcon: Icon(Icons.calendar_today)),
+                    decoration: InputDecoration(
+                      labelText: 'Date',
+                      suffixIcon: Icon(Icons.calendar_today, color: Colors.blueGrey.shade600),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                      ),
+                    ),
                     readOnly: true,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    style: TextStyle(color: Colors.blueGrey.shade700),
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
@@ -941,8 +1171,25 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                       }
                     },
                   ),
-                  const SizedBox(height: 8),
-                  TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Work Description'), maxLines: 3, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(
+                      labelText: 'Work Description',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blueGrey.shade300),
+                      ),
+                    ),
+                    maxLines: 3,
+                    style: TextStyle(color: Colors.blueGrey.shade700),
+                  ),
                 ],
               ),
             ),
