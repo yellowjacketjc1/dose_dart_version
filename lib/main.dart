@@ -741,7 +741,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.playlist_add_check, size: 48, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 12),
-                const Text('Add a task with a checkmark or something similar', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+                const Text('', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(onPressed: () { addTask(); }, icon: const Icon(Icons.add), label: const Text('Add Task'))
               ]),
