@@ -973,47 +973,137 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(children: [
-                              // Thinner TabBar with simple underline indicator for the selected tab
-                              TabBar(
-                                controller: tabController,
-                                isScrollable: true,
-                                // Use onSurface for tab labels so text remains visible on white backgrounds
-                                labelColor: Theme.of(context).colorScheme.onSurface,
-                                unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
-                                labelStyle: const TextStyle(fontWeight: FontWeight.w600),
-                                // reduce vertical padding so the tab bar is thinner
-                                indicatorPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                // simple underline indicator showing only under the active tab
-                                indicator: UnderlineTabIndicator(
-                                  borderSide: BorderSide(width: 3.0, color: Theme.of(context).colorScheme.primary),
-                                  insets: EdgeInsets.symmetric(horizontal: 12.0),
+                          // Pill slider container with background and animated indicator
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Stack(
+                              children: [
+                                // Animated pill indicator
+                                AnimatedBuilder(
+                                  animation: tabController,
+                                  builder: (context, child) {
+                                    final selectedIndex = tabController.index;
+                                    const tabWidth = 120.0; // Fixed width for consistent sliding
+                                    const tabSpacing = 4.0;
+
+                                    return AnimatedPositioned(
+                                      duration: const Duration(milliseconds: 300),
+                                      curve: Curves.easeInOut,
+                                      left: selectedIndex * (tabWidth + tabSpacing),
+                                      child: Container(
+                                        width: tabWidth,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          // Translucent glassy effect
+                                          color: selectedIndex == 0
+                                            ? Colors.indigo.shade200.withOpacity(0.4)
+                                            : Colors.blue.shade200.withOpacity(0.4),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: selectedIndex == 0
+                                              ? Colors.indigo.shade300.withOpacity(0.6)
+                                              : Colors.blue.shade300.withOpacity(0.6),
+                                            width: 1.5,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: (selectedIndex == 0 ? Colors.indigo : Colors.blue).withOpacity(0.15),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 1),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
-                                tabs: tabs.map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0), child: t)).toList(),
-                              ),
-                          const SizedBox(width: 6),
-                          // Add Task pill sits immediately after the last tab in the scroll content
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  addTask();
-                                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    try {
-                                      tabController.animateTo(tasks.length);
-                                    } catch (_) {}
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [BoxShadow(color: Color.fromRGBO(0,0,0,0.04), blurRadius: 6, offset: const Offset(0,2))],
-                                  ),
-                                  child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add, size: 18, color: Theme.of(context).colorScheme.onPrimary), const SizedBox(width: 8), Text('Add Task', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary))]),
+                                // Tab buttons on top of the slider
+                                Row(
+                                  children: List.generate(tabs.length, (index) {
+                                    final isSelected = tabController.index == index;
+                                    const tabWidth = 120.0;
+
+                                    return Container(
+                                      width: tabWidth,
+                                      height: 40,
+                                      margin: const EdgeInsets.only(right: 4),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(8),
+                                          onTap: () {
+                                            tabController.animateTo(index);
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            child: Center(
+                                              child: Text(
+                                                tabs[index].text ?? '',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: isSelected
+                                                    ? (index == 0 ? Colors.indigo.shade800 : Colors.blue.shade800)
+                                                    : Colors.grey.shade700,
+                                                  fontSize: 13,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Enhanced Add Task button with card styling
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                addTask();
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  try {
+                                    tabController.animateTo(tasks.length);
+                                  } catch (_) {}
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade600,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.green.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2)
+                                    )
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add, size: 18, color: Colors.white),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Add Task',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
