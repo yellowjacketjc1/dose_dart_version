@@ -825,22 +825,6 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       children: [
         // Task summary cards first with enhanced styling
         if (taskCards.isNotEmpty) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade600,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'Task Summary Cards',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
@@ -1106,22 +1090,6 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.blueGrey.shade600,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Project Information',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   TextField(
                     controller: workOrderController,
                     decoration: InputDecoration(
@@ -1484,12 +1452,46 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               padding: const EdgeInsets.all(12.0),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
-                  Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Task Title'), controller: t.titleController, focusNode: t.titleFocusNode, autofocus: t.titleController.text.isEmpty, onChanged: (v) { setState(() {}); })),
+                  Expanded(child: TextField(
+                    decoration: InputDecoration(
+                      labelText: 'Task Title',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                    ),
+                    controller: t.titleController,
+                    focusNode: t.titleFocusNode,
+                    autofocus: t.titleController.text.isEmpty,
+                    onChanged: (v) { setState(() {}); }
+                  )),
                   const SizedBox(width: 12),
                   ElevatedButton.icon(onPressed: () => removeTask(index), icon: const Icon(Icons.delete), label: const Text('Remove Task'))
                 ]),
                 const SizedBox(height: 8),
-                TextField(decoration: const InputDecoration(labelText: 'Location'), controller: t.locationController, onChanged: (v) { setState(() {}); }),
+                TextField(
+                  decoration: InputDecoration(
+                    labelText: 'Location',
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  controller: t.locationController,
+                  onChanged: (v) { setState(() {}); }
+                ),
               ]),
             ),
           ),
@@ -1502,9 +1504,43 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 padding: const EdgeInsets.all(12.0),
                 child: Column(children: [
                   Row(children: [
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: '# Workers'), keyboardType: TextInputType.number, controller: t.workersController, onChanged: (v) { setState(() {}); })),
+                    Expanded(child: TextField(
+                      decoration: InputDecoration(
+                        labelText: '# Workers',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      keyboardType: TextInputType.number,
+                      controller: t.workersController,
+                      onChanged: (v) { setState(() {}); }
+                    )),
                     const SizedBox(width: 12),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Hours Each'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.hoursController, onChanged: (v) { setState(() {}); })),
+                    Expanded(child: TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Hours Each',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      controller: t.hoursController,
+                      onChanged: (v) { setState(() {}); }
+                    )),
                     const SizedBox(width: 12),
                     Expanded(child: Card(
                       color: Colors.blue.shade50,
@@ -1535,9 +1571,45 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 padding: const EdgeInsets.all(12.0),
                 child: Column(children: [
                   Row(children: [
-                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifR > 0.0 ? t.mpifR : null, decoration: const InputDecoration(labelText: 'Release Factor (R)', hintText: 'Select R'), items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifR = v ?? 0.0; setState(() {}); })),
+                    Expanded(child: DropdownButtonFormField<double>(
+                      value: t.mpifR > 0.0 ? t.mpifR : null,
+                      decoration: InputDecoration(
+                        labelText: 'Release Factor (R)',
+                        hintText: 'Select R',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(),
+                      onChanged: (v) { t.mpifR = v ?? 0.0; setState(() {}); }
+                    )),
                     const SizedBox(width: 12),
-                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifC > 0.0 ? t.mpifC : null, decoration: const InputDecoration(labelText: 'Confinement Factor (C)', hintText: 'Select C'), items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifC = v ?? 0.0; setState(() {}); })),
+                    Expanded(child: DropdownButtonFormField<double>(
+                      value: t.mpifC > 0.0 ? t.mpifC : null,
+                      decoration: InputDecoration(
+                        labelText: 'Confinement Factor (C)',
+                        hintText: 'Select C',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(),
+                      onChanged: (v) { t.mpifC = v ?? 0.0; setState(() {}); }
+                    )),
                   ]),
                   const SizedBox(height: 12),
                   Row(children: [
@@ -1545,7 +1617,20 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     Expanded(
                       child: DropdownButtonFormField<int>(
                         value: (t.mpifD > 0.0) ? t.mpifD.toInt() : null,
-                        decoration: const InputDecoration(labelText: 'Dispersibility (D)', hintText: 'Select D'),
+                        decoration: InputDecoration(
+                          labelText: 'Dispersibility (D)',
+                          hintText: 'Select D',
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
                         items: List.generate(10, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
                         onChanged: (v) {
                           if (v != null) {
@@ -1561,7 +1646,20 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     Expanded(
                       child: DropdownButtonFormField<int>(
                         value: (t.mpifU > 0.0) ? t.mpifU.toInt() : null,
-                        decoration: const InputDecoration(labelText: 'Uncertainty (U)', hintText: 'Select U'),
+                        decoration: InputDecoration(
+                          labelText: 'Uncertainty (U)',
+                          hintText: 'Select U',
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
                         items: List.generate(10, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
                         onChanged: (v) {
                           if (v != null) {
@@ -1577,7 +1675,20 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     Expanded(
                       child: DropdownButtonFormField<double>(
                         value: (t.mpifS > 0.0) ? t.mpifS : null,
-                        decoration: const InputDecoration(labelText: 'Special Form (S)', hintText: 'Select S'),
+                        decoration: InputDecoration(
+                          labelText: 'Special Form (S)',
+                          hintText: 'Select S',
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
                         items: [0.1, 1.0].map((v) => DropdownMenuItem(value: v, child: Text(v.toString()))).toList(),
                         onChanged: (v) {
                           if (v != null) {
@@ -1625,7 +1736,24 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 child: Column(children: [
                   Column(children: [
                     Row(children: [
-                      Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.doseRateController, onChanged: (v) { setState(() {}); })),
+                      Expanded(child: TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Dose Rate (mrem/hr)',
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        controller: t.doseRateController,
+                        onChanged: (v) { setState(() {}); }
+                      )),
                     ]),
                     const SizedBox(height: 16),
                     Row(children: [
@@ -1710,14 +1838,62 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                             onSelected: (selection) { e.nuclide = selection; setState(() {}); },
                             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
                               controller.text = e.nuclide ?? '';
-                              return TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide'));
+                              return TextField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'Nuclide',
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                )
+                              );
                             },
                           ),
                         ),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() { e.doseRate = double.tryParse(v) ?? 0.0; }); })),
+                    Expanded(child: TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Dose Rate (mrem/hr)',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      controller: e.doseRateController,
+                      onChanged: (v) { setState(() { e.doseRate = double.tryParse(v) ?? 0.0; }); }
+                    )),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Time (hr)'), controller: e.timeController, onChanged: (v) { setState(() { e.time = double.tryParse(v) ?? 0.0; }); })),
+                    Expanded(child: TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Time (hr)',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      controller: e.timeController,
+                      onChanged: (v) { setState(() { e.time = double.tryParse(v) ?? 0.0; }); }
+                    )),
                     IconButton(onPressed: () { setState(() { e.disposeControllers(); t.extremities.removeAt(ei); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
                   ]);
                   })),
@@ -1843,7 +2019,23 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
                               controller.text = n.name ?? '';
                               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide')),
+                                TextField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  decoration: InputDecoration(
+                                    labelText: 'Nuclide',
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                    ),
+                                  )
+                                ),
                                 const SizedBox(height: 6),
                                 Builder(builder: (ctx) {
                                   final dac = dacValues[n.name] ?? 0.0;
