@@ -271,7 +271,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     "Be-7": 2e-6, "Be-10": 2e-8, "Bi-206": 3e-8, "Bi-207": 4e-8, "Bi-210": 2e-9, "Bi-212": 6e-8, "Bk-249": 2e-9,
     "Br-82": 3e-7, "C-11": 4e-6, "C-14": 2e-7, "Ca-41": 6e-7, "Ca-45": 9e-9, "Ca-47": 9e-8, "Cd-109": 8e-8,
     "Cd-113m": 2e-8, "Cd-115": 3e-7, "Cd-115m": 9e-8, "Ce-139": 2e-7, "Ce-141": 1e-7, "Ce-143": 1e-7, "Ce-144": 2e-9,
-    "Cf-249": 3e-12, "Cf-250": 6e-12, "Cf-251": 3e-12, "Cf-252": 2e-11, "Cl-36": 2e-8, "Cl-38": 2e-6, "Cm-242": 2e-11,
+    "Cf-249": 3e-12, "Cf-250": 6e-12, "Cf-251": 3e-12, "Cf-252": 1e-11, "Cl-36": 2e-8, "Cl-38": 2e-6, "Cm-242": 2e-11,
     "Cm-243": 6e-12, "Cm-244": 8e-12, "Cm-245": 5e-12, "Cm-246": 5e-12, "Cm-247": 5e-12, "Cm-248": 2e-12,
     "Co-56": 1e-7, "Co-57": 4e-7, "Co-58": 2e-7, "Co-58m": 1e-5, "Co-60": 3e-9, "Co-60m": 3e-4, "Cr-51": 3e-6,
     "Cs-129": 3e-6, "Cs-131": 1e-6, "Cs-134": 2e-8, "Cs-134m": 5e-5, "Cs-135": 3e-7, "Cs-136": 4e-8, "Cs-137": 8e-8,
@@ -304,7 +304,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     "Se-75": 2e-7, "Se-79": 2e-6, "Si-31": 9e-7, "Si-32": 3e-8, "Sm-145": 3e-7, "Sm-147": 2e-11, "Sm-151": 3e-6,
     "Sm-153": 5e-7, "Sn-113": 2e-7, "Sn-117m": 2e-7, "Sn-119m": 4e-7, "Sn-121": 2e-6, "Sn-121m": 2e-7, "Sn-123": 8e-8,
     "Sn-125": 1e-7, "Sn-126": 1e-8, "Sr-82": 2e-7, "Sr-85": 3e-7, "Sr-85m": 1e-5, "Sr-87m": 3e-5, "Sr-89": 3e-8,
-    "Sr-90": 9e-9, "Sr-91": 3e-7, "Sr-92": 1e-6, "Ta-178": 1e-7, "Ta-179": 3e-7, "Ta-182": 4e-8, "Tb-157": 2e-7,
+    "Sr-90": 7e-9, "Sr-91": 3e-7, "Sr-92": 1e-6, "Ta-178": 1e-7, "Ta-179": 3e-7, "Ta-182": 4e-8, "Tb-157": 2e-7,
     "Tb-158": 5e-9, "Tb-160": 4e-8, "Tc-94": 1e-6, "Tc-94m": 2e-6, "Tc-95": 1e-6, "Tc-95m": 6e-7, "Tc-96": 2e-7,
     "Tc-96m": 1e-5, "Tc-97": 4e-6, "Tc-97m": 1e-6, "Tc-98": 8e-9, "Tc-99": 2e-6, "Tc-99m": 2e-5, "Te-121": 2e-6,
     "Te-121m": 2e-7, "Te-123": 5e-7, "Te-123m": 2e-7, "Te-125m": 3e-7, "Te-127": 7e-7, "Te-127m": 1e-7, "Te-129": 7e-7,
@@ -423,27 +423,20 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   double totalCollectiveInternalAfterPFE = 0.0;
 
     for (final n in t.nuclides) {
-      final contam = n.contam; // dpm/100cm2
-      final dac = dacValues[n.name] ?? 1e-12;
-      // Avoid accidental zero division
-      final safeDac = (dac == 0.0) ? 1e-12 : dac;
-      final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
-      final dacFractionRaw = (airConc / safeDac);
-      final dacFractionEngOnly = dacFractionRaw / (t.pfe == 0.0 ? 1.0 : t.pfe);
-      final dacFractionWithBoth = dacFractionRaw / ((t.pfe == 0.0 ? 1.0 : t.pfe) * (t.pfr == 0.0 ? 1.0 : t.pfr));
-
-      // Doses: unprotected, after engineering only, after engineering + respirator
-      final nuclideDoseUnprotected = dacFractionRaw * (personHours / 2000) * 5000; // no PFE/PFR
-      final nuclideDoseAfterPFE = dacFractionEngOnly * (personHours / 2000) * 5000; // PFE applied
-      final nuclideDoseAfterBoth = dacFractionEngOnly * (personHours / 2000) * 5000 / (t.pfr == 0.0 ? 1.0 : t.pfr); // PFE then PFR
+      final res = computeNuclideDose(n, t);
+      final dacFractionEngOnly = res['dacFractionEngOnly'] ?? 0.0;
+      final dacFractionWithBoth = res['dacFractionWithBoth'] ?? 0.0;
+      final nuclideDoseAfterBoth = res['collective'] ?? 0.0;
+      final nuclideDoseUnprotected = res['unprotected'] ?? 0.0;
+      final nuclideDoseAfterPFE = res['afterPFE'] ?? 0.0;
 
       totalDacFraction += dacFractionEngOnly;
       totalDacFractionEngOnly += dacFractionEngOnly;
       totalDacFractionWithResp += dacFractionWithBoth;
 
-  totalCollectiveInternal += nuclideDoseAfterBoth;
-  totalCollectiveInternalUnprotected += nuclideDoseUnprotected;
-  totalCollectiveInternalAfterPFE += nuclideDoseAfterPFE;
+      totalCollectiveInternal += nuclideDoseAfterBoth;
+      totalCollectiveInternalUnprotected += nuclideDoseUnprotected;
+      totalCollectiveInternalAfterPFE += nuclideDoseAfterPFE;
     }
 
     final collectiveExternal = t.doseRate * personHours;
@@ -452,10 +445,14 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
     double totalExtremityDose = 0.0;
     for (final e in t.extremities) {
-      totalExtremityDose += e.doseRate * e.time;
+      totalExtremityDose += e.doseRate * e.time; // per-person extremity dose (mrem)
     }
 
-    return {
+  // totalExtremityDose currently holds per-person extremity dose (sum of e.doseRate*e.time)
+  final individualExtremity = totalExtremityDose;
+  final collectiveExtremity = totalExtremityDose * workers;
+
+  return {
       'personHours': personHours,
       'mPIF': mPIF,
       'totalDacFraction': totalDacFraction, // post-PFE (what the UI previously showed)
@@ -467,7 +464,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       'collectiveExternal': collectiveExternal,
       'collectiveEffective': collectiveEffective,
       'individualEffective': individualEffective,
-      'totalExtremityDose': totalExtremityDose,
+      // keep backwards compatibility: 'totalExtremityDose' represents the collective extremity
+      // so that callers dividing by workers obtain the per-person dose as before.
+      'totalExtremityDose': collectiveExtremity,
+      'individualExtremity': individualExtremity,
+      'collectiveExtremity': collectiveExtremity,
     };
   }
 
@@ -476,13 +477,45 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   String formatNumber(double v) {
     final av = v.abs();
     if (av == 0.0) return '0';
+    // Use exponential notation for extremes
     if ((av < 0.001 && av > 0) || av >= 1e6) {
       return v.toStringAsExponential(2);
     }
-    // otherwise show up to 6 significant digits, trimming trailing zeros
-    var s = v.toStringAsPrecision(6);
-    // remove + sign in exponent if any, and trim
-    return s.replaceAll(RegExp(r"\.?0+"), '').replaceAll(RegExp(r"e\+0"), 'e');
+
+    // For normal-range values, round to three decimal places for cleaner UI.
+    // Keep sign and format with fixed 3 decimals.
+    return v.toStringAsFixed(3);
+  }
+
+  // Compute per-nuclide dose components in one place to keep UI and totals consistent.
+  Map<String, double> computeNuclideDose(NuclideEntry n, TaskData t) {
+    final dac = dacValues[n.name] ?? 1e-12;
+    final safeDac = (dac == 0.0) ? 1e-12 : dac;
+    final mPIF = computeMPIF(t);
+    final airConc = (n.contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
+    final dacFractionRaw = (airConc / safeDac);
+    final dacFractionEngOnly = dacFractionRaw / (t.pfe == 0.0 ? 1.0 : t.pfe);
+    final dacFractionWithBoth = dacFractionRaw / ((t.pfe == 0.0 ? 1.0 : t.pfe) * (t.pfr == 0.0 ? 1.0 : t.pfr));
+
+    final workers = t.workers > 0 ? t.workers : 1;
+    final personHours = workers * t.hours;
+
+    // Unprotected collective dose
+    final unprotected = dacFractionRaw * (personHours / 2000) * 5000;
+    final afterPFE = dacFractionEngOnly * (personHours / 2000) * 5000;
+    final collective = dacFractionEngOnly * (personHours / 2000) * 5000 / (t.pfr == 0.0 ? 1.0 : t.pfr);
+
+    return {
+      'dac': dac,
+      'airConc': airConc,
+      'dacFractionRaw': dacFractionRaw,
+      'dacFractionEngOnly': dacFractionEngOnly,
+      'dacFractionWithBoth': dacFractionWithBoth,
+      'unprotected': unprotected,
+      'afterPFE': afterPFE,
+      'collective': collective,
+      'individual': workers > 0 ? collective / workers : 0.0,
+    };
   }
 
   /// Compute global ALARA and air-sampling triggers across all tasks.
@@ -843,16 +876,29 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           IconButton(onPressed: importStateFromClipboard, icon: const Icon(Icons.upload)),
           IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
           IconButton(onPressed: () {
-            // Show a quick deterministic sample calculation using either the first task or a sample set
-            final sample = tasks.isNotEmpty ? tasks.first : TaskData(title: 'Sample', location: 'Lab', workers: 1, hours: 1.0, mpifR: 1.0, mpifC: 100.0, mpifD: 1.0, mpifS: 1.0, mpifU: 1.0, doseRate: 0.0, pfr: 50.0, pfe: 1000.0, nuclides: [NuclideEntry(name: 'Cs-137', contam: 1000.0)]);
-            final mPIF = computeMPIF(sample);
-            final n = sample.nuclides.first;
-            final dac = dacValues[n.name] ?? 1e-12;
-            final airConc = (n.contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
-            final dacRaw = airConc / dac;
-            final dacAfterPFE = dacRaw / sample.pfe;
-            final nuclideDose = dacAfterPFE * ((sample.workers * sample.hours) / 2000) * 5000 / sample.pfr;
-            showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Dose Test'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('mPIF: ${mPIF.toStringAsExponential(3)}'), Text('Contamination: ${n.contam} dpm/100cm²'), Text('DAC: ${formatNumber(dac)}'), Text('Air Conc: ${airConc.toStringAsExponential(3)}'), Text('Raw DAC fraction: ${dacRaw.toStringAsExponential(3)}'), Text('After PFE (divide by ${sample.pfe}): ${dacAfterPFE.toStringAsExponential(3)}'), Text('Final dose (divide by PFR ${sample.pfr}): ${nuclideDose.toStringAsExponential(6)}')]), actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); }, child: const Text('Close'))]));
+            // Diagnostic dialog: show per-nuclide computed fields for the first task (or a sample)
+            final t = tasks.isNotEmpty ? tasks.first : TaskData(title: 'Sample', location: 'Lab', workers: 1, hours: 15.0, mpifR: 1.0, mpifC: 100.0, mpifD: 1.0, mpifS: 1.0, mpifU: 1.0, doseRate: 0.0, pfr: 1.0, pfe: 1.0, nuclides: [NuclideEntry(name: 'Sr-90', contam: 100000.0)]);
+            final List<Widget> rows = [];
+            rows.add(Text('Task: ${t.title}  Location: ${t.location}'));
+            rows.add(const SizedBox(height: 8));
+            for (final n in t.nuclides) {
+              final res = computeNuclideDose(n, t);
+              final dac = res['dac'] ?? 0.0;
+              final airConc = res['airConc'] ?? 0.0;
+              final raw = res['dacFractionRaw'] ?? 0.0;
+              final eng = res['dacFractionEngOnly'] ?? 0.0;
+              final collective = res['collective'] ?? 0.0;
+              final individual = res['individual'] ?? 0.0;
+              rows.add(Text('Nuclide: ${n.name}  Contam: ${n.contam} dpm/100cm²'));
+              rows.add(Text('  DAC: ${formatNumber(dac)}'));
+              rows.add(Text('  Air conc: ${airConc.toStringAsExponential(6)}'));
+              rows.add(Text('  DAC fraction (raw): ${raw.toStringAsExponential(6)}'));
+              rows.add(Text('  DAC fraction (after PFE): ${eng.toStringAsExponential(6)}'));
+              rows.add(Text('  Collective internal dose: ${collective.toStringAsExponential(6)}'));
+              rows.add(Text('  Individual internal dose: ${individual.toStringAsExponential(6)}'));
+              rows.add(const SizedBox(height: 6));
+            }
+            showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Per-nuclide Diagnostics'), content: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: rows)), actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); }, child: const Text('Close'))]));
           }, icon: const Icon(Icons.bug_report)),
         ],
       ),
@@ -1228,20 +1274,48 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                   Column(children: List.generate(t.extremities.length, (ei) {
                     final e = t.extremities[ei];
                     return Row(children: [
-                      Expanded(
-                        child: Autocomplete<String>(
-                          initialValue: TextEditingValue(text: e.nuclide ?? ''),
-                          optionsBuilder: (TextEditingValue textEditingValue) {
-                            if (textEditingValue.text == '') return dacValues.keys.toList();
-                            return dacValues.keys.where((k) => k.toLowerCase().contains(textEditingValue.text.toLowerCase()));
-                          },
-                          onSelected: (selection) { e.nuclide = selection; setState(() {}); },
-                          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                            controller.text = e.nuclide ?? '';
-                            return TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide'));
-                          },
+                        Expanded(
+                          child: Autocomplete<String>(
+                            initialValue: TextEditingValue(text: e.nuclide ?? ''),
+                            optionsBuilder: (TextEditingValue textEditingValue) {
+                              if (textEditingValue.text == '') return dacValues.keys.toList();
+                              return dacValues.keys.where((k) => k.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                            },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              return Material(
+                                elevation: 4,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxHeight: 200),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder: (context, index) {
+                                      final option = options.elementAt(index);
+                                      final dac = dacValues[option] ?? 1e-12;
+                                      return ListTile(
+                                        title: Text(option),
+                                        subtitle: Text('DAC: ${formatNumber(dac)}'),
+                                        onTap: () => onSelected(option),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                            onSelected: (selection) { e.nuclide = selection; setState(() {}); },
+                            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                              controller.text = e.nuclide ?? '';
+                              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide')),
+                                const SizedBox(height: 6),
+                                Builder(builder: (ctx) {
+                                  final dac = dacValues[e.nuclide] ?? 0.0;
+                                  return Text('DAC: ${dac > 0 ? formatNumber(dac) : '—'}', style: const TextStyle(fontSize: 12, color: Colors.black54));
+                                })
+                              ]);
+                            },
+                          ),
                         ),
-                      ),
                     const SizedBox(width: 8),
                     Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() {}); })),
                     const SizedBox(width: 8),
@@ -1252,7 +1326,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                   const SizedBox(height: 8),
                   ElevatedButton.icon(onPressed: () { setState(() { t.extremities.add(ExtremityEntry()); }); }, icon: const Icon(Icons.add), label: const Text('Add Extremity Dose')),
                   const SizedBox(height: 8),
-                  Text('Total Extremity Dose (this task): ${totals['totalExtremityDose']!.toStringAsFixed(2)}')
+                  Text('Total Extremity Dose (per person): ${totals['individualExtremity']!.toStringAsFixed(2)}  — collective: ${totals['collectiveExtremity']!.toStringAsFixed(2)}')
                 ]),
               )
             ]),
@@ -1294,14 +1368,13 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 child: Column(children: [
                     Column(children: List.generate(t.nuclides.length, (ni) {
                     final n = t.nuclides[ni];
-                    final dac = dacValues[n.name] ?? 1e-12;
-                    final safeDac = (dac == 0.0) ? 1e-12 : dac;
-                    final mPIF = computeMPIF(t);
-                    final airConc = (n.contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
-                    final dacFractionRaw = (airConc / safeDac);
-                    final dacFractionEngOnly = dacFractionRaw / (t.pfe == 0.0 ? 1.0 : t.pfe);
-                    final nuclideDose = dacFractionEngOnly * ((t.workers * t.hours) / 2000) * 5000 / (t.pfr == 0.0 ? 1.0 : t.pfr);
-                    final nuclideIndividual = t.workers > 0 ? nuclideDose / t.workers : 0.0;
+                    final res = computeNuclideDose(n, t);
+                    final dac = res['dac'] ?? 1e-12;
+                    final airConc = res['airConc'] ?? 0.0;
+                    final dacFractionEngOnly = res['dacFractionEngOnly'] ?? 0.0;
+                    final nuclideCollective = res['collective'] ?? 0.0;
+                    final nuclideIndividualPerPerson = res['individual'] ?? 0.0;
+
                     return Column(children: [
                       Row(children: [
                         Expanded(
@@ -1311,10 +1384,38 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                               if (textEditingValue.text == '') return dacValues.keys.toList();
                               return dacValues.keys.where((k) => k.toLowerCase().contains(textEditingValue.text.toLowerCase()));
                             },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              return Material(
+                                elevation: 4,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxHeight: 200),
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.zero,
+                                    itemCount: options.length,
+                                    itemBuilder: (context, index) {
+                                      final option = options.elementAt(index);
+                                      final dac = dacValues[option] ?? 1e-12;
+                                      return ListTile(
+                                        title: Text(option),
+                                        subtitle: Text('DAC: ${formatNumber(dac)}'),
+                                        onTap: () => onSelected(option),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
                             onSelected: (selection) { n.name = selection; setState(() {}); },
                             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
                               controller.text = n.name ?? '';
-                              return TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide'));
+                              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide')),
+                                const SizedBox(height: 6),
+                                Builder(builder: (ctx) {
+                                  final dac = dacValues[n.name] ?? 0.0;
+                                  return Text('DAC: ${dac > 0 ? formatNumber(dac) : '—'}', style: const TextStyle(fontSize: 12, color: Colors.black54));
+                                })
+                              ]);
                             },
                           ),
                         ),
@@ -1331,8 +1432,42 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                         )),
                         IconButton(onPressed: () { setState(() { n.disposeControllers(); t.nuclides.removeAt(ni); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
                       ]),
+
+                      // Single concise card showing internal dose computed as:
+                      // InternalDose_collective = ((airConc / (PFE * PFR)) / DAC) * (workers * hours) / 2000 * 5000
+                      // InternalDose_individual = InternalDose_collective / workers
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Card(
+                          color: Colors.white,
+                          child: Padding(padding: const EdgeInsets.all(12.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Text('Per-nuclide Details', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                const Text('Airborne conc.', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                                const SizedBox(height: 4),
+                                Text(airConc.isFinite ? airConc.toStringAsExponential(3) : '0', style: const TextStyle(fontWeight: FontWeight.w700)),
+                              ])),
+                              const SizedBox(width: 12),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                const Text('DAC Fraction (after PFE)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                                const SizedBox(height: 4),
+                                Text(dacFractionEngOnly.isFinite ? formatNumber(dacFractionEngOnly) : '0', style: const TextStyle(fontWeight: FontWeight.w700)),
+                              ])),
+                            ]),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              Expanded(child: Text('Internal Dose (per person): ${formatNumber(nuclideIndividualPerPerson)}', style: const TextStyle(fontWeight: FontWeight.w700))),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text('Internal Dose (collective): ${formatNumber(nuclideCollective)}', style: const TextStyle(fontWeight: FontWeight.w700))),
+                            ])
+                          ])),
+                        ),
+                      ),
                       const SizedBox(height: 6),
-                      const Divider()
+                      const Divider(),
                     ]);
                   })),
                   ElevatedButton.icon(onPressed: () { setState(() { t.nuclides.add(NuclideEntry()); }); }, icon: const Icon(Icons.add), label: const Text('Add Nuclide')),
@@ -1344,6 +1479,32 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           const SizedBox(height: 12),
 
           // Prominent per-task totals displayed as three compact cards for visual emphasis
+          // Task-level DAC summary card (summed DAC fraction and DAC-hours)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: Card(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Summed DAC Fraction (post-PFE)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    const SizedBox(height: 6),
+                    Text(formatNumber(totals['totalDacFraction'] ?? 0.0), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ])),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('DAC-hours (post-PFE)', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                    const SizedBox(height: 6),
+                    Text(formatNumber((totals['totalDacFraction'] ?? 0.0) * t.hours), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ])),
+                ]),
+              ),
+            ),
+          ),
+
           Row(children: [
             Expanded(
         child: Card(
