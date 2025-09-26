@@ -405,18 +405,39 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final personHours = workers * hours;
     final mPIF = computeMPIF(t);
 
-    double totalDacFraction = 0.0;
+    // We'll compute a few different intermediate values for clarity and triggers:
+    // - dacFractionRaw: airConc / dac (before any protections)
+    // - dacFractionEngOnly: dacFractionRaw / PFE (after engineering controls only)
+    // - dacFractionWithResp: dacFractionRaw / (PFE * PFR) used for certain trigger calculations
+    double totalDacFraction = 0.0; // current UI field (post-PFE sum)
+  double totalDacFractionEngOnly = 0.0; // sum after engineering controls only
+    double totalDacFractionWithResp = 0.0; // sum after both eng + resp (used for some triggers)
     double totalCollectiveInternal = 0.0;
+    double totalCollectiveInternalUnprotected = 0.0;
+  double totalCollectiveInternalAfterPFE = 0.0;
 
     for (final n in t.nuclides) {
       final contam = n.contam; // dpm/100cm2
       final dac = dacValues[n.name] ?? 1e-12;
+      // Avoid accidental zero division
+      final safeDac = (dac == 0.0) ? 1e-12 : dac;
       final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
-      final dacFractionRaw = (airConc / dac);
-      final dacFraction = dacFractionRaw / t.pfe;
-      final nuclideDose = dacFraction * (personHours / 2000) * 5000 / t.pfr;
-      totalDacFraction += dacFraction;
-      totalCollectiveInternal += nuclideDose;
+      final dacFractionRaw = (airConc / safeDac);
+      final dacFractionEngOnly = dacFractionRaw / (t.pfe == 0.0 ? 1.0 : t.pfe);
+      final dacFractionWithBoth = dacFractionRaw / ((t.pfe == 0.0 ? 1.0 : t.pfe) * (t.pfr == 0.0 ? 1.0 : t.pfr));
+
+      // Doses: unprotected, after engineering only, after engineering + respirator
+      final nuclideDoseUnprotected = dacFractionRaw * (personHours / 2000) * 5000; // no PFE/PFR
+      final nuclideDoseAfterPFE = dacFractionEngOnly * (personHours / 2000) * 5000; // PFE applied
+      final nuclideDoseAfterBoth = dacFractionEngOnly * (personHours / 2000) * 5000 / (t.pfr == 0.0 ? 1.0 : t.pfr); // PFE then PFR
+
+      totalDacFraction += dacFractionEngOnly;
+      totalDacFractionEngOnly += dacFractionEngOnly;
+      totalDacFractionWithResp += dacFractionWithBoth;
+
+  totalCollectiveInternal += nuclideDoseAfterBoth;
+  totalCollectiveInternalUnprotected += nuclideDoseUnprotected;
+  totalCollectiveInternalAfterPFE += nuclideDoseAfterPFE;
     }
 
     final collectiveExternal = t.doseRate * personHours;
@@ -428,11 +449,15 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       totalExtremityDose += e.doseRate * e.time;
     }
 
-  return {
+    return {
       'personHours': personHours,
       'mPIF': mPIF,
-      'totalDacFraction': totalDacFraction,
-      'collectiveInternal': totalCollectiveInternal,
+      'totalDacFraction': totalDacFraction, // post-PFE (what the UI previously showed)
+      'totalDacFractionEngOnly': totalDacFractionEngOnly,
+      'totalDacFractionWithResp': totalDacFractionWithResp,
+  'collectiveInternal': totalCollectiveInternal,
+  'collectiveInternalUnprotected': totalCollectiveInternalUnprotected,
+  'collectiveInternalAfterPFE': totalCollectiveInternalAfterPFE,
       'collectiveExternal': collectiveExternal,
       'collectiveEffective': collectiveEffective,
       'individualEffective': individualEffective,
@@ -811,6 +836,18 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           IconButton(onPressed: exportState, icon: const Icon(Icons.save)),
           IconButton(onPressed: importStateFromClipboard, icon: const Icon(Icons.upload)),
           IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
+          IconButton(onPressed: () {
+            // Show a quick deterministic sample calculation using either the first task or a sample set
+            final sample = tasks.isNotEmpty ? tasks.first : TaskData(title: 'Sample', location: 'Lab', workers: 1, hours: 1.0, mpifR: 1.0, mpifC: 100.0, mpifD: 1.0, mpifS: 1.0, mpifU: 1.0, doseRate: 0.0, pfr: 50.0, pfe: 1000.0, nuclides: [NuclideEntry(name: 'Cs-137', contam: 1000.0)]);
+            final mPIF = computeMPIF(sample);
+            final n = sample.nuclides.first;
+            final dac = dacValues[n.name] ?? 1e-12;
+            final airConc = (n.contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
+            final dacRaw = airConc / dac;
+            final dacAfterPFE = dacRaw / sample.pfe;
+            final nuclideDose = dacAfterPFE * ((sample.workers * sample.hours) / 2000) * 5000 / sample.pfr;
+            showDialog(context: context, builder: (ctx) => AlertDialog(title: const Text('Dose Test'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('mPIF: ${mPIF.toStringAsExponential(3)}'), Text('Contamination: ${n.contam} dpm/100cm²'), Text('DAC: ${formatNumber(dac)}'), Text('Air Conc: ${airConc.toStringAsExponential(3)}'), Text('Raw DAC fraction: ${dacRaw.toStringAsExponential(3)}'), Text('After PFE (divide by ${sample.pfe}): ${dacAfterPFE.toStringAsExponential(3)}'), Text('Final dose (divide by PFR ${sample.pfr}): ${nuclideDose.toStringAsExponential(6)}')]), actions: [TextButton(onPressed: () { Navigator.of(ctx).pop(); }, child: const Text('Close'))]));
+          }, icon: const Icon(Icons.bug_report)),
         ],
       ),
       body: SingleChildScrollView(
@@ -1224,16 +1261,18 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('Respiratory (PFR)'),
-                    RadioListTile<double>(value: 1, groupValue: t.pfr, title: const Text('None (PFR=1)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
-                    RadioListTile<double>(value: 50, groupValue: t.pfr, title: const Text('APR (PFR=50)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
-                    RadioListTile<double>(value: 1000, groupValue: t.pfr, title: const Text('PAPR (PFR=1000)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                    RadioListTile<double>(value: 1.0, groupValue: t.pfr, title: const Text('None (PFR=1)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                    RadioListTile<double>(value: 50.0, groupValue: t.pfr, title: const Text('APR (PFR=50)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                    RadioListTile<double>(value: 1000.0, groupValue: t.pfr, title: const Text('PAPR (PFR=1000)'), onChanged: (v) { t.pfr = v ?? t.pfr; setState(() {}); }),
+                    const SizedBox(height: 6),
                   ])),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const Text('Engineering (PFE)'),
-                    RadioListTile<double>(value: 1, groupValue: t.pfe, title: const Text('No Controls (PFE=1)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
-                    RadioListTile<double>(value: 1000, groupValue: t.pfe, title: const Text('Type I (PFE=1,000)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
-                    RadioListTile<double>(value: 100000, groupValue: t.pfe, title: const Text('Type II (PFE=100,000)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                    RadioListTile<double>(value: 1.0, groupValue: t.pfe, title: const Text('No Controls (PFE=1)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                    RadioListTile<double>(value: 1000.0, groupValue: t.pfe, title: const Text('Type I (PFE=1,000)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                    RadioListTile<double>(value: 100000.0, groupValue: t.pfe, title: const Text('Type II (PFE=100,000)'), onChanged: (v) { t.pfe = v ?? t.pfe; setState(() {}); }),
+                    const SizedBox(height: 6),
                   ])),
                 ]),
               )
@@ -1247,13 +1286,15 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(children: [
-                  Column(children: List.generate(t.nuclides.length, (ni) {
+                    Column(children: List.generate(t.nuclides.length, (ni) {
                     final n = t.nuclides[ni];
                     final dac = dacValues[n.name] ?? 1e-12;
-                    final airConc = (n.contam / 100) * computeMPIF(t) * (1 / 100) * (1 / 2.22e6);
-                    final dacFractionRaw = (airConc / dac);
-                    final dacFraction = dacFractionRaw / t.pfe;
-                    final nuclideDose = dacFraction * ((t.workers * t.hours) / 2000) * 5000 / t.pfr;
+                    final safeDac = (dac == 0.0) ? 1e-12 : dac;
+                    final mPIF = computeMPIF(t);
+                    final airConc = (n.contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
+                    final dacFractionRaw = (airConc / safeDac);
+                    final dacFractionEngOnly = dacFractionRaw / (t.pfe == 0.0 ? 1.0 : t.pfe);
+                    final nuclideDose = dacFractionEngOnly * ((t.workers * t.hours) / 2000) * 5000 / (t.pfr == 0.0 ? 1.0 : t.pfr);
                     final nuclideIndividual = t.workers > 0 ? nuclideDose / t.workers : 0.0;
                     return Column(children: [
                       Row(children: [
@@ -1284,15 +1325,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                         )),
                         IconButton(onPressed: () { setState(() { n.disposeControllers(); t.nuclides.removeAt(ni); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
                       ]),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(children: [
-                          Expanded(child: Text('DAC: ${formatNumber(dac)}')),
-                          Expanded(child: Text('DAC Fraction: ${formatNumber(dacFraction)}')),
-                          Expanded(child: Text('Ind. Int Dose: ${formatNumber(nuclideIndividual)}')),
-                          Expanded(child: Text('Coll. Int Dose: ${formatNumber(nuclideDose)}')),
-                        ]),
-                      ),
+                      const SizedBox(height: 6),
                       const Divider()
                     ]);
                   })),
