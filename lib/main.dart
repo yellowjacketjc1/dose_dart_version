@@ -1169,7 +1169,21 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     const SizedBox(width: 12),
                     Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Hours Each'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.hoursController, onChanged: (v) { setState(() {}); })),
                     const SizedBox(width: 12),
-                    Expanded(child: Text('Person-Hours: ${calculateTaskTotals(t)['personHours']!.toStringAsFixed(2)}'))
+                    Expanded(child: Card(
+                      color: Colors.blue.shade50,
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Person-Hours', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                            const SizedBox(height: 4),
+                            Text('${calculateTaskTotals(t)['personHours']!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+                          ],
+                        ),
+                      ),
+                    ))
                   ])
                 ]),
               )
@@ -1238,7 +1252,27 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(child: Tooltip(message: 'mPIF = 1e-6 * R * C * D * S * U', child: Text(calculateTaskTotals(t)['mPIF']! > 0.0 ? 'mPIF: ${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}' : 'mPIF: (not set)')))
+                    Expanded(child: Card(
+                      color: Colors.purple.shade50,
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('mPIF Result', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                            const SizedBox(height: 4),
+                            Tooltip(
+                              message: 'mPIF = 1e-6 * R * C * D * S * U',
+                              child: Text(
+                                calculateTaskTotals(t)['mPIF']! > 0.0 ? '${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}' : '(not set)',
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.purple),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ))
                   ])
                 ]),
               )
@@ -1252,12 +1286,46 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(children: [
-                  Row(children: [
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.doseRateController, onChanged: (v) { setState(() {}); })),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text('Person-Hours: ${totals['personHours']!.toStringAsFixed(2)}')),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text('Collective External: ${totals['collectiveExternal']!.toStringAsFixed(2)}')),
+                  Column(children: [
+                    Row(children: [
+                      Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.doseRateController, onChanged: (v) { setState(() {}); })),
+                    ]),
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      Expanded(child: Card(
+                        color: Colors.green.shade50,
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Person-Hours', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                              const SizedBox(height: 4),
+                              Text('${totals['personHours']!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                            ],
+                          ),
+                        ),
+                      )),
+                      const SizedBox(width: 12),
+                      Expanded(child: Card(
+                        color: Colors.orange.shade50,
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Collective External', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                              const SizedBox(height: 4),
+                              Text('${totals['collectiveExternal']!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+                              const SizedBox(height: 2),
+                              const Text('(mrem)', style: TextStyle(fontSize: 10, color: Colors.black45)),
+                            ],
+                          ),
+                        ),
+                      )),
+                    ]),
                   ])
                 ]),
               )
@@ -1305,28 +1373,57 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                             onSelected: (selection) { e.nuclide = selection; setState(() {}); },
                             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
                               controller.text = e.nuclide ?? '';
-                              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide')),
-                                const SizedBox(height: 6),
-                                Builder(builder: (ctx) {
-                                  final dac = dacValues[e.nuclide] ?? 0.0;
-                                  return Text('DAC: ${dac > 0 ? formatNumber(dac) : '—'}', style: const TextStyle(fontSize: 12, color: Colors.black54));
-                                })
-                              ]);
+                              return TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide'));
                             },
                           ),
                         ),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() {}); })),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() { e.doseRate = double.tryParse(v) ?? 0.0; }); })),
                     const SizedBox(width: 8),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Time (hr)'), controller: e.timeController, onChanged: (v) { setState(() {}); })),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Time (hr)'), controller: e.timeController, onChanged: (v) { setState(() { e.time = double.tryParse(v) ?? 0.0; }); })),
                     IconButton(onPressed: () { setState(() { e.disposeControllers(); t.extremities.removeAt(ei); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
                   ]);
                   })),
                   const SizedBox(height: 8),
                   ElevatedButton.icon(onPressed: () { setState(() { t.extremities.add(ExtremityEntry()); }); }, icon: const Icon(Icons.add), label: const Text('Add Extremity Dose')),
-                  const SizedBox(height: 8),
-                  Text('Total Extremity Dose (per person): ${totals['individualExtremity']!.toStringAsFixed(2)}  — collective: ${totals['collectiveExtremity']!.toStringAsFixed(2)}')
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Expanded(child: Card(
+                      color: Colors.deepOrange.shade50,
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Individual Extremity Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                            const SizedBox(height: 4),
+                            Text('${totals['individualExtremity']!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                            const SizedBox(height: 2),
+                            const Text('(mrem per person)', style: TextStyle(fontSize: 10, color: Colors.black45)),
+                          ],
+                        ),
+                      ),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: Card(
+                      color: Colors.red.shade50,
+                      elevation: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Collective Extremity Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                            const SizedBox(height: 4),
+                            Text('${totals['collectiveExtremity']!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+                            const SizedBox(height: 2),
+                            const Text('(mrem)', style: TextStyle(fontSize: 10, color: Colors.black45)),
+                          ],
+                        ),
+                      ),
+                    )),
+                  ])
                 ]),
               )
             ]),
