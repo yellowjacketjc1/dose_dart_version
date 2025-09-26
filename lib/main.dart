@@ -1507,6 +1507,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     Expanded(child: TextField(
                       decoration: InputDecoration(
                         labelText: '# Workers',
+                        hintText: 'Enter number of workers',
                         filled: true,
                         fillColor: Colors.grey.shade50,
                         border: OutlineInputBorder(
@@ -2024,6 +2025,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                   focusNode: focusNode,
                                   decoration: InputDecoration(
                                     labelText: 'Nuclide',
+                                    hintText: 'Select a radionuclide',
                                     filled: true,
                                     fillColor: Colors.grey.shade50,
                                     border: OutlineInputBorder(
@@ -2035,12 +2037,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                       borderSide: BorderSide(color: Colors.grey.shade300),
                                     ),
                                   )
-                                ),
-                                const SizedBox(height: 6),
-                                Builder(builder: (ctx) {
-                                  final dac = dacValues[n.name] ?? 0.0;
-                                  return Text('DAC: ${dac > 0 ? formatNumber(dac) : '—'}', style: const TextStyle(fontSize: 12, color: Colors.black54));
-                                })
+                                )
                               ]);
                             },
                           ),
