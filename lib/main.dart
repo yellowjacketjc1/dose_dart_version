@@ -14,18 +14,19 @@ class DoseEstimateApp extends StatelessWidget {
     return MaterialApp(
       title: 'RPP-742 Dose Estimate',
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF0066CC),
+        // Soft friendly light palette: soft blue primary, gentle teal secondary, warm background
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A90E2), brightness: Brightness.light, secondary: const Color(0xFF2DB7A3), background: const Color(0xFFF7F8FA)),
         brightness: Brightness.light,
         useMaterial3: true,
-        elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0066CC), foregroundColor: Colors.white)),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(backgroundColor: Color(0xFF00AA88)),
-        chipTheme: ChipThemeData(backgroundColor: const Color(0xFFEDF7FF), labelStyle: const TextStyle(color: Color(0xFF003366))),
+        elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A90E2), foregroundColor: Colors.white)),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(backgroundColor: Color(0xFF2DB7A3)),
+        chipTheme: ChipThemeData(backgroundColor: const Color(0xFFEEF6FF), labelStyle: const TextStyle(color: Color(0xFF234A6B))),
         // Use an outlined style for TextFields to give more definition
         inputDecorationTheme: InputDecorationTheme(
           filled: false,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
           enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: Colors.grey.shade400)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: const Color(0xFF0066CC), width: 2.0)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0), borderSide: BorderSide(color: const Color(0xFF4A90E2), width: 2.0)),
           labelStyle: const TextStyle(color: Colors.black87),
           contentPadding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
         ),
@@ -392,7 +393,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   }
 
   double computeMPIF(TaskData t) {
-    final mPIF = 1e-6 * t.mpifR * t.mpifC * t.mpifD * 1 * t.mpifS * t.mpifU;
+    // ensure all multipliers are treated as doubles and avoid integer-only arithmetic
+    final mPIF = 1e-6 * (t.mpifR) * (t.mpifC) * (t.mpifD) * 1.0 * (t.mpifS) * (t.mpifU);
     return mPIF;
   }
 
@@ -426,7 +428,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       totalExtremityDose += e.doseRate * e.time;
     }
 
-    return {
+  return {
       'personHours': personHours,
       'mPIF': mPIF,
       'totalDacFraction': totalDacFraction,
@@ -436,6 +438,20 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       'individualEffective': individualEffective,
       'totalExtremityDose': totalExtremityDose,
     };
+  }
+
+  // Format numbers for display: use plain formatting for readable ranges,
+  // exponential only when very small or very large.
+  String formatNumber(double v) {
+    final av = v.abs();
+    if (av == 0.0) return '0';
+    if ((av < 0.001 && av > 0) || av >= 1e6) {
+      return v.toStringAsExponential(2);
+    }
+    // otherwise show up to 6 significant digits, trimming trailing zeros
+    var s = v.toStringAsPrecision(6);
+    // remove + sign in exponent if any, and trim
+    return s.replaceAll(RegExp(r"\.?0+"), '').replaceAll(RegExp(r"e\+0"), 'e');
   }
 
   /// Compute global ALARA and air-sampling triggers across all tasks.
@@ -504,7 +520,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     }
     final alara7 = totalInternalDoseOnly > 100;
 
-    final alara1 = tasks.isNotEmpty; // approximate: non-routine/complex work if tasks present (left for user)
+  // Do not auto-check 'Non-routine or complex work' — user should decide this.
+  final alara1 = false;
 
     final sampling1 = maxDacHrsWithResp > 40;
     final sampling2 = tasks.any((t) => t.pfr > 1);
@@ -648,9 +665,25 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final triggers = computeGlobalTriggers();
 
     if (tasks.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(24.0),
-        child: Text('No tasks added.'),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Card(
+            color: Colors.white,
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28.0, horizontal: 24.0),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.playlist_add_check, size: 48, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(height: 12),
+                const Text('Add a task with a checkmark or something similar', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(onPressed: () { addTask(); }, icon: const Icon(Icons.add), label: const Text('Add Task'))
+              ]),
+            ),
+          ),
+        ),
       );
     }
 
@@ -667,12 +700,12 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         Padding(padding: const EdgeInsets.all(8), child: Text(t.title)),
         Padding(padding: const EdgeInsets.all(8), child: Text(t.location)),
         Padding(padding: const EdgeInsets.all(8), child: Text('${t.workers}')),
-        Padding(padding: const EdgeInsets.all(8), child: Text(totals['totalDacFraction']!.toStringAsExponential(2))),
+  Padding(padding: const EdgeInsets.all(8), child: Text(formatNumber(totals['totalDacFraction']!))),
         Padding(padding: const EdgeInsets.all(8), child: Text(individualExternal.toStringAsFixed(2))),
-        Padding(padding: const EdgeInsets.all(8), child: Text(individualInternal.toStringAsExponential(2))),
+  Padding(padding: const EdgeInsets.all(8), child: Text(formatNumber(individualInternal))),
         Padding(padding: const EdgeInsets.all(8), child: Text((totals['totalExtremityDose']! / workers).toStringAsFixed(2))),
         Padding(padding: const EdgeInsets.all(8), child: Text(totals['collectiveExternal']!.toStringAsFixed(2))),
-        Padding(padding: const EdgeInsets.all(8), child: Text(totals['collectiveInternal']!.toStringAsExponential(2))),
+  Padding(padding: const EdgeInsets.all(8), child: Text(formatNumber(totals['collectiveInternal']!))),
         Padding(padding: const EdgeInsets.all(8), child: Text(individualTotal.toStringAsFixed(2))),
       ]));
     }
@@ -704,7 +737,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               ]),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Ind. Internal', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                Text(indInternal.toStringAsExponential(2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(formatNumber(indInternal), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ]),
             ]),
             const SizedBox(height: 8),
@@ -731,7 +764,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         const SizedBox(height: 12),
         const SizedBox(height: 16),
         Card(
-          color: Colors.blue.shade50,
+          color: Theme.of(context).colorScheme.primary.withAlpha((0.02*255).round()),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(children: [
@@ -765,9 +798,10 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   Widget build(BuildContext context) {
     final tabs = <Tab>[const Tab(text: 'Summary')];
     tabs.addAll(List.generate(tasks.length, (i) {
-      final t = tasks[i];
-      final label = (t.title.trim().isEmpty) ? 'Task ${i + 1}' : 'Task ${i + 1}: ${t.title}';
-      return Tab(text: label);
+      final td = tasks[i];
+      // Show the task number before the title. If no title, show just the number.
+      final label = (td.title.trim().isEmpty) ? '${i + 1}' : '${i + 1} ${td.title}';
+      return Tab(key: ValueKey('task-tab-$i'), text: label);
     }));
 
     return Scaffold(
@@ -784,24 +818,42 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Persistent Project Info header (always visible) — colorful gradient
+            // Persistent Project Info header — emphasized with a faint tint, border and shadow
             Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF0066CC), Color(0xFF00AA88)]),
+                color: Theme.of(context).colorScheme.primary.withAlpha((0.03*255).round()),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 8, offset: const Offset(0, 4))],
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha((0.18*255).round())),
+                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.06), blurRadius: 8, offset: const Offset(0, 6))],
               ),
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Project Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                  Text('Project Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
                   const SizedBox(height: 8),
-                  TextField(controller: workOrderController, decoration: const InputDecoration(labelText: 'Work Control Document Number'), style: const TextStyle(color: Colors.white)),
+                  TextField(controller: workOrderController, decoration: const InputDecoration(labelText: 'Work Control Document Number'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
                   const SizedBox(height: 8),
-                  TextField(controller: dateController, decoration: const InputDecoration(labelText: 'Date'), style: const TextStyle(color: Colors.white)),
+                  TextField(
+                    controller: dateController,
+                    decoration: const InputDecoration(labelText: 'Date', suffixIcon: Icon(Icons.calendar_today)),
+                    readOnly: true,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.tryParse(dateController.text) ?? DateTime.now(),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        dateController.text = '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                        setState(() {});
+                      }
+                    },
+                  ),
                   const SizedBox(height: 8),
-                  TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Work Description'), maxLines: 3, style: const TextStyle(color: Colors.white)),
+                  TextField(controller: descriptionController, decoration: const InputDecoration(labelText: 'Work Description'), maxLines: 3, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
                 ],
               ),
             ),
@@ -811,11 +863,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
             // Tab area centered inside a rounded Card with lively accents
             Container(
-              decoration: BoxDecoration(
+                decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha((0.12*255).round())),
-                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.08), blurRadius: 10, offset: const Offset(0, 6))],
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha((0.08*255).round())),
+                boxShadow: [BoxShadow(color: Color.fromRGBO(0, 0, 0, 0.06), blurRadius: 8, offset: const Offset(0, 6))],
               ),
               padding: const EdgeInsets.all(8.0),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -832,21 +884,23 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(children: [
-                          // The TabBar sizes to its content so it participates in the scrollable row
-                          TabBar(
-                            controller: tabController,
-                            isScrollable: true,
-                            labelColor: Theme.of(context).colorScheme.onPrimary,
-                            unselectedLabelColor: Theme.of(context).colorScheme.onSurface,
-                            // roomy padding so indicator forms a pill larger than the text
-                            indicatorPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            indicator: GradientTabIndicator(
-                              radius: 16,
-                              blurRadius: 8,
-                              gradient: LinearGradient(colors: [Color.fromRGBO(255,255,255,0.18), Theme.of(context).colorScheme.primary.withAlpha((0.28*255).round())], begin: Alignment.topCenter, end: Alignment.bottomCenter),
-                            ),
-                            tabs: tabs.map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0), child: t)).toList(),
-                          ),
+                              // Thinner TabBar with simple underline indicator for the selected tab
+                              TabBar(
+                                controller: tabController,
+                                isScrollable: true,
+                                // Use onSurface for tab labels so text remains visible on white backgrounds
+                                labelColor: Theme.of(context).colorScheme.onSurface,
+                                unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+                                labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+                                // reduce vertical padding so the tab bar is thinner
+                                indicatorPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                // simple underline indicator showing only under the active tab
+                                indicator: UnderlineTabIndicator(
+                                  borderSide: BorderSide(width: 3.0, color: Theme.of(context).colorScheme.primary),
+                                  insets: EdgeInsets.symmetric(horizontal: 12.0),
+                                ),
+                                tabs: tabs.map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0), child: t)).toList(),
+                              ),
                           const SizedBox(width: 6),
                           // Add Task pill sits immediately after the last tab in the scroll content
                           Padding(
@@ -866,11 +920,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
-                                    gradient: LinearGradient(colors: [Color.fromRGBO(255,255,255,0.18), Theme.of(context).colorScheme.primary.withAlpha((0.28*255).round())], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                                    color: Theme.of(context).colorScheme.primary,
                                     borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [BoxShadow(color: Color.fromRGBO(0,0,0,0.06), blurRadius: 6, offset: const Offset(0,2))],
+                                    boxShadow: [BoxShadow(color: Color.fromRGBO(0,0,0,0.04), blurRadius: 6, offset: const Offset(0,2))],
                                   ),
-                                  child: Row(mainAxisSize: MainAxisSize.min, children: const [Icon(Icons.add, size: 18, color: Colors.white), SizedBox(width: 8), Text('Add Task', style: TextStyle(color: Colors.white))]),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add, size: 18, color: Theme.of(context).colorScheme.onPrimary), const SizedBox(width: 8), Text('Add Task', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary))]),
                                 ),
                               ),
                             ),
@@ -885,10 +939,18 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                   child: TabBarView(
                     controller: tabController,
                     children: [
-                      // Summary tab
-                      SingleChildScrollView(padding: const EdgeInsets.all(12), child: buildSummary()),
+                      // Summary tab — emphasized summary card
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.all(12),
+                        child: Card(
+                          color: Colors.white,
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Padding(padding: const EdgeInsets.all(12), child: buildSummary()),
+                        ),
+                      ),
                       // Task tabs
-                      for (var i = 0; i < tasks.length; i++) buildTaskTab(i),
+                      for (var i = 0; i < tasks.length; i++) KeyedSubtree(key: ValueKey('task-view-$i'), child: buildTaskTab(i)),
                     ],
                   ),
                 )
@@ -906,7 +968,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     // Build ALARA card and Air Sampling card similar to original HTML checklist
     return Column(children: [
       Card(
-        color: Colors.blue.shade50,
+        color: Colors.white,
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -954,7 +1016,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       ),
       const SizedBox(height: 8),
       Card(
-        color: Colors.orange.shade50,
+        color: Colors.white,
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1039,13 +1101,55 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                   ]),
                   const SizedBox(height: 12),
                   Row(children: [
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dispersibility (D)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.mpifDController, onChanged: (v) { setState(() {}); })),
+                    // Dispersibility dropdown 1..10
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: int.tryParse(t.mpifDController.text) ?? t.mpifD.toInt(),
+                        decoration: const InputDecoration(labelText: 'Dispersibility (D)'),
+                        items: List.generate(10, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            t.mpifD = v.toDouble();
+                            t.mpifDController.text = v.toString();
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Special Form (S)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.mpifSController, onChanged: (v) { setState(() {}); })),
+                    // Uncertainty dropdown 1..10
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: int.tryParse(t.mpifUController.text) ?? t.mpifU.toInt(),
+                        decoration: const InputDecoration(labelText: 'Uncertainty (U)'),
+                        items: List.generate(10, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            t.mpifU = v.toDouble();
+                            t.mpifUController.text = v.toString();
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Uncertainty (U)'), keyboardType: const TextInputType.numberWithOptions(decimal: true), controller: t.mpifUController, onChanged: (v) { setState(() {}); })),
+                    // Special Form dropdown (placed last in row)
+                    Expanded(
+                      child: DropdownButtonFormField<double>(
+                        value: double.tryParse(t.mpifSController.text) ?? t.mpifS,
+                        decoration: const InputDecoration(labelText: 'Special Form (S)'),
+                        items: [0.1, 1.0].map((v) => DropdownMenuItem(value: v, child: Text(v.toString()))).toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            t.mpifS = v;
+                            t.mpifSController.text = v.toString();
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: Text('mPIF: ${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}'))
+                    Expanded(child: Tooltip(message: 'mPIF = 1e-6 * R * C * D * S * U', child: Text('mPIF: ${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}')))
                   ])
                 ]),
               )
@@ -1080,14 +1184,27 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 child: Column(children: [
                   Column(children: List.generate(t.extremities.length, (ei) {
                     final e = t.extremities[ei];
-                      return Row(children: [
-                        Expanded(child: DropdownButtonFormField<String>(initialValue: e.nuclide, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { e.nuclide = v ?? e.nuclide; setState(() {}); })),
-                      const SizedBox(width: 8),
-                      Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() {}); })),
-                      const SizedBox(width: 8),
-                      Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Time (hr)'), controller: e.timeController, onChanged: (v) { setState(() {}); })),
-                      IconButton(onPressed: () { setState(() { e.disposeControllers(); t.extremities.removeAt(ei); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
-                    ]);
+                    return Row(children: [
+                      Expanded(
+                        child: Autocomplete<String>(
+                          initialValue: TextEditingValue(text: e.nuclide ?? ''),
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text == '') return dacValues.keys.toList();
+                            return dacValues.keys.where((k) => k.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                          },
+                          onSelected: (selection) { e.nuclide = selection; setState(() {}); },
+                          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                            controller.text = e.nuclide ?? '';
+                            return TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide'));
+                          },
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Dose Rate (mrem/hr)'), controller: e.doseRateController, onChanged: (v) { setState(() {}); })),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(decoration: const InputDecoration(labelText: 'Time (hr)'), controller: e.timeController, onChanged: (v) { setState(() {}); })),
+                    IconButton(onPressed: () { setState(() { e.disposeControllers(); t.extremities.removeAt(ei); }); }, icon: const Icon(Icons.delete, color: Colors.red)),
+                  ]);
                   })),
                   const SizedBox(height: 8),
                   ElevatedButton.icon(onPressed: () { setState(() { t.extremities.add(ExtremityEntry()); }); }, icon: const Icon(Icons.add), label: const Text('Add Extremity Dose')),
@@ -1137,13 +1254,26 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     final dacFractionRaw = (airConc / dac);
                     final dacFraction = dacFractionRaw / t.pfe;
                     final nuclideDose = dacFraction * ((t.workers * t.hours) / 2000) * 5000 / t.pfr;
-                    final nuclideIndividual = t.workers > 0 ? nuclideDose / t.workers : 0;
+                    final nuclideIndividual = t.workers > 0 ? nuclideDose / t.workers : 0.0;
                     return Column(children: [
                       Row(children: [
-                        Expanded(child: DropdownButtonFormField<String>(initialValue: n.name, items: dacValues.keys.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(), onChanged: (v) { n.name = v ?? n.name; setState(() {}); })),
+                        Expanded(
+                          child: Autocomplete<String>(
+                            initialValue: TextEditingValue(text: n.name ?? ''),
+                            optionsBuilder: (TextEditingValue textEditingValue) {
+                              if (textEditingValue.text == '') return dacValues.keys.toList();
+                              return dacValues.keys.where((k) => k.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+                            },
+                            onSelected: (selection) { n.name = selection; setState(() {}); },
+                            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                              controller.text = n.name ?? '';
+                              return TextField(controller: controller, focusNode: focusNode, decoration: const InputDecoration(labelText: 'Nuclide'));
+                            },
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(child: TextField(
-                          decoration: const InputDecoration(labelText: 'Contam. (dpm/100cm²)'),
+                          decoration: const InputDecoration(labelText: 'Contam. (dpm/100cm²)', hintText: 'enter contamination level here'),
                           controller: n.contamController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
@@ -1157,10 +1287,10 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(children: [
-                          Expanded(child: Text('DAC: ${dac.toStringAsExponential(2)}')),
-                          Expanded(child: Text('DAC Fraction: ${dacFraction.toStringAsExponential(2)}')),
-                          Expanded(child: Text('Ind. Int Dose: ${nuclideIndividual.toStringAsExponential(2)}')),
-                          Expanded(child: Text('Coll. Int Dose: ${nuclideDose.toStringAsExponential(2)}')),
+                          Expanded(child: Text('DAC: ${formatNumber(dac)}')),
+                          Expanded(child: Text('DAC Fraction: ${formatNumber(dacFraction)}')),
+                          Expanded(child: Text('Ind. Int Dose: ${formatNumber(nuclideIndividual)}')),
+                          Expanded(child: Text('Coll. Int Dose: ${formatNumber(nuclideDose)}')),
                         ]),
                       ),
                       const Divider()
@@ -1177,8 +1307,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           // Prominent per-task totals displayed as three compact cards for visual emphasis
           Row(children: [
             Expanded(
-              child: Card(
-                color: Colors.blue.shade50,
+        child: Card(
+          color: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 2,
                 child: Padding(
@@ -1196,7 +1326,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
             const SizedBox(width: 8),
             Expanded(
               child: Card(
-                color: Colors.green.shade50,
+                color: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 2,
                 child: Padding(
@@ -1213,8 +1343,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Card(
-                color: Colors.orange.shade50,
+        child: Card(
+          color: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 2,
                 child: Padding(
