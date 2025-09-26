@@ -76,11 +76,12 @@ class TaskData {
     this.location = '',
     this.workers = 1,
     this.hours = 1.0,
-    this.mpifR = 1.0,
-    this.mpifC = 100.0,
-    this.mpifD = 1.0,
-    this.mpifS = 1.0,
-    this.mpifU = 1.0,
+    // Use 0.0 to indicate 'not selected' for all mPIF inputs. UI will require selection before computing mPIF.
+    this.mpifR = 0.0,
+    this.mpifC = 0.0,
+    this.mpifD = 0.0,
+    this.mpifS = 0.0,
+    this.mpifU = 0.0,
     this.doseRate = 0.0,
     this.pfr = 1.0,
     this.pfe = 1.0,
@@ -88,14 +89,15 @@ class TaskData {
     List<ExtremityEntry>? extremities,
   })  : nuclides = nuclides ?? [NuclideEntry()],
         extremities = extremities ?? [] {
-    titleController.text = title;
-    locationController.text = location;
-    workersController.text = workers.toString();
-    hoursController.text = hours.toString();
-    mpifDController.text = mpifD.toString();
-    mpifSController.text = mpifS.toString();
-    mpifUController.text = mpifU.toString();
-    doseRateController.text = doseRate.toString();
+  titleController.text = title;
+  locationController.text = location;
+  workersController.text = workers.toString();
+  hoursController.text = hours.toString();
+  // Leave mPIF field controllers empty when value is 0.0 (not selected)
+  mpifDController.text = mpifD > 0.0 ? mpifD.toString() : '';
+  mpifSController.text = mpifS > 0.0 ? mpifS.toString() : '';
+  mpifUController.text = mpifU > 0.0 ? mpifU.toString() : '';
+  doseRateController.text = doseRate.toString();
 
     // keep model fields in sync with controllers
     titleController.addListener(() {
@@ -111,13 +113,13 @@ class TaskData {
       hours = double.tryParse(hoursController.text) ?? 0.0;
     });
     mpifDController.addListener(() {
-      mpifD = double.tryParse(mpifDController.text) ?? 1.0;
+      mpifD = double.tryParse(mpifDController.text) ?? 0.0;
     });
     mpifSController.addListener(() {
-      mpifS = double.tryParse(mpifSController.text) ?? 1.0;
+      mpifS = double.tryParse(mpifSController.text) ?? 0.0;
     });
     mpifUController.addListener(() {
-      mpifU = double.tryParse(mpifUController.text) ?? 1.0;
+      mpifU = double.tryParse(mpifUController.text) ?? 0.0;
     });
     doseRateController.addListener(() {
       doseRate = double.tryParse(doseRateController.text) ?? 0.0;
@@ -393,6 +395,10 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   }
 
   double computeMPIF(TaskData t) {
+    // require all mPIF factors to be selected (non-zero) before computing
+    if (t.mpifR <= 0.0 || t.mpifC <= 0.0 || t.mpifD <= 0.0 || t.mpifS <= 0.0 || t.mpifU <= 0.0) {
+      return 0.0; // sentinel meaning 'not set'
+    }
     // ensure all multipliers are treated as doubles and avoid integer-only arithmetic
     final mPIF = 1e-6 * (t.mpifR) * (t.mpifC) * (t.mpifD) * 1.0 * (t.mpifS) * (t.mpifU);
     return mPIF;
@@ -1132,17 +1138,17 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                 padding: const EdgeInsets.all(12.0),
                 child: Column(children: [
                   Row(children: [
-                    Expanded(child: DropdownButtonFormField<double>(initialValue: t.mpifR, decoration: const InputDecoration(labelText: 'Release Factor (R)'), items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifR = v ?? t.mpifR; setState(() {}); })),
+                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifR > 0.0 ? t.mpifR : null, decoration: const InputDecoration(labelText: 'Release Factor (R)', hintText: 'Select R'), items: releaseFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifR = v ?? 0.0; setState(() {}); })),
                     const SizedBox(width: 12),
-                    Expanded(child: DropdownButtonFormField<double>(initialValue: t.mpifC, decoration: const InputDecoration(labelText: 'Confinement Factor (C)'), items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifC = v ?? t.mpifC; setState(() {}); })),
+                    Expanded(child: DropdownButtonFormField<double>(value: t.mpifC > 0.0 ? t.mpifC : null, decoration: const InputDecoration(labelText: 'Confinement Factor (C)', hintText: 'Select C'), items: confinementFactors.entries.map((e) => DropdownMenuItem(value: e.value, child: Text('${e.key}'))).toList(), onChanged: (v) { t.mpifC = v ?? 0.0; setState(() {}); })),
                   ]),
                   const SizedBox(height: 12),
                   Row(children: [
                     // Dispersibility dropdown 1..10
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: int.tryParse(t.mpifDController.text) ?? t.mpifD.toInt(),
-                        decoration: const InputDecoration(labelText: 'Dispersibility (D)'),
+                        value: (t.mpifD > 0.0) ? t.mpifD.toInt() : null,
+                        decoration: const InputDecoration(labelText: 'Dispersibility (D)', hintText: 'Select D'),
                         items: List.generate(10, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
                         onChanged: (v) {
                           if (v != null) {
@@ -1157,8 +1163,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     // Uncertainty dropdown 1..10
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: int.tryParse(t.mpifUController.text) ?? t.mpifU.toInt(),
-                        decoration: const InputDecoration(labelText: 'Uncertainty (U)'),
+                        value: (t.mpifU > 0.0) ? t.mpifU.toInt() : null,
+                        decoration: const InputDecoration(labelText: 'Uncertainty (U)', hintText: 'Select U'),
                         items: List.generate(10, (i) => i + 1).map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
                         onChanged: (v) {
                           if (v != null) {
@@ -1173,8 +1179,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     // Special Form dropdown (placed last in row)
                     Expanded(
                       child: DropdownButtonFormField<double>(
-                        value: double.tryParse(t.mpifSController.text) ?? t.mpifS,
-                        decoration: const InputDecoration(labelText: 'Special Form (S)'),
+                        value: (t.mpifS > 0.0) ? t.mpifS : null,
+                        decoration: const InputDecoration(labelText: 'Special Form (S)', hintText: 'Select S'),
                         items: [0.1, 1.0].map((v) => DropdownMenuItem(value: v, child: Text(v.toString()))).toList(),
                         onChanged: (v) {
                           if (v != null) {
@@ -1186,7 +1192,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(child: Tooltip(message: 'mPIF = 1e-6 * R * C * D * S * U', child: Text('mPIF: ${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}')))
+                    Expanded(child: Tooltip(message: 'mPIF = 1e-6 * R * C * D * S * U', child: Text(calculateTaskTotals(t)['mPIF']! > 0.0 ? 'mPIF: ${calculateTaskTotals(t)['mPIF']!.toStringAsExponential(2)}' : 'mPIF: (not set)')))
                   ])
                 ]),
               )
