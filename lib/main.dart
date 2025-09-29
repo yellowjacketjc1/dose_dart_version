@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() {
   runApp(const DoseEstimateApp());
@@ -683,6 +686,42 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     return reasons;
   }
 
+  void saveToFile() async {
+    if (kIsWeb) {
+      // For web, fall back to clipboard copy for now
+      exportState();
+      return;
+    }
+
+    try {
+      final state = {
+        'projectInfo': {
+          'workOrder': workOrderController.text,
+          'date': dateController.text,
+          'description': descriptionController.text,
+        },
+        'tasks': tasks.map((t) => t.toJson()).toList(),
+        'triggerOverrides': triggerOverrides,
+      };
+      final jsonStr = jsonEncode(state);
+
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save dose assessment',
+        fileName: 'dose_assessment.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsString(jsonStr);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File saved successfully')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save file: $e')));
+    }
+  }
+
   void exportState() async {
     final state = {
       'projectInfo': {
@@ -696,6 +735,47 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final jsonStr = jsonEncode(state);
     await Clipboard.setData(ClipboardData(text: jsonStr));
   if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State copied to clipboard (JSON).')));
+  }
+
+  void loadFromFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null) {
+        String fileContent;
+        if (kIsWeb) {
+          // For web, read from bytes
+          final bytes = result.files.single.bytes!;
+          fileContent = utf8.decode(bytes);
+        } else {
+          // For desktop/mobile, read from file path
+          final file = File(result.files.single.path!);
+          fileContent = await file.readAsString();
+        }
+
+        final Map<String, dynamic> state = jsonDecode(fileContent);
+
+        setState(() {
+          workOrderController.text = state['projectInfo']?['workOrder'] ?? '';
+          dateController.text = state['projectInfo']?['date'] ?? '';
+          descriptionController.text = state['projectInfo']?['description'] ?? '';
+          // dispose existing task controllers first
+          for (final tt in tasks) {
+            tt.disposeControllers();
+          }
+          tasks = (state['tasks'] as List? ?? []).map((t) => TaskData.fromJson(t)).toList();
+          // load trigger overrides if present
+          triggerOverrides = Map<String, bool>.from(state['triggerOverrides'] ?? {});
+          tabController = TabController(length: tasks.length + 1, vsync: this);
+        });
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File loaded successfully')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load file: $e')));
+    }
   }
 
   void importStateFromClipboard() async {
@@ -1032,7 +1112,9 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       appBar: AppBar(
         title: const Text('RPP-742 Task-Based Dose Assessment'),
         actions: [
-          IconButton(onPressed: exportState, icon: const Icon(Icons.save)),
+          IconButton(onPressed: saveToFile, icon: const Icon(Icons.save)),
+          IconButton(onPressed: loadFromFile, icon: const Icon(Icons.folder_open)),
+          IconButton(onPressed: exportState, icon: const Icon(Icons.copy)),
           IconButton(onPressed: importStateFromClipboard, icon: const Icon(Icons.upload)),
           IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
           IconButton(onPressed: () {
