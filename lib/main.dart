@@ -1048,7 +1048,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Container(
-          width: 280,
+          width: 360,
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Task ${i + 1}: ${t.title}', style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1084,7 +1084,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       children: [
         // Detailed triggers section first
         buildTriggers(),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
 
         // ALARA/Air Sampling/CAMs indicator cards second
         Row(children: [
@@ -1187,7 +1187,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
             ),
           )),
         ]),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         // Task summary cards with enhanced styling
         if (taskCards.isNotEmpty) ...[
@@ -1232,7 +1232,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
               ),
             ]),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
         ],
 
         // Overall dose summary last with enhanced design
@@ -1305,7 +1305,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                         ),
                         const SizedBox(height: 4),
                         const Text('person-mrem', style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 12),
                         // Breakdown cards
                         Row(children: [
                           Expanded(child: Container(
@@ -1440,7 +1440,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1706,13 +1706,13 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                   ),
                 ),
                 SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.65,
+                  height: MediaQuery.of(context).size.height * 0.8,
                   child: TabBarView(
                     controller: tabController,
                     children: [
                       // Summary tab — emphasized summary card
                       SingleChildScrollView(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
                         child: Card(
                           color: Colors.white,
                           elevation: 2,
@@ -1835,7 +1835,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final totals = calculateTaskTotals(t);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
