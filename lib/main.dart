@@ -188,9 +188,11 @@ class TaskData {
 class NuclideEntry {
   String name;
   double contam; // dpm/100cm2
+  double? customDAC; // µCi/mL - only used when name is "Other"
   final TextEditingController contamController = TextEditingController();
+  final TextEditingController dacController = TextEditingController();
 
-  NuclideEntry({this.name = 'Other', this.contam = 0.0}) {
+  NuclideEntry({this.name = 'Other', this.contam = 0.0, this.customDAC}) {
     contamController.text = contam.toString();
     contamController.addListener(() {
       final parsed = double.tryParse(contamController.text);
@@ -198,13 +200,36 @@ class NuclideEntry {
         contam = parsed;
       }
     });
+
+    // Initialize DAC controller for "Other" nuclides
+    if (name == 'Other' && customDAC != null) {
+      dacController.text = customDAC!.toStringAsExponential(2);
+    }
+    dacController.addListener(() {
+      if (name == 'Other') {
+        final parsed = double.tryParse(dacController.text);
+        if (parsed != null && parsed > 0) {
+          customDAC = parsed;
+        }
+      }
+    });
   }
 
-  Map<String, dynamic> toJson() => {'name': name, 'contam': contam};
-  static NuclideEntry fromJson(Map<String, dynamic> j) => NuclideEntry(name: j['name'] ?? 'Other', contam: (j['contam'] ?? 0).toDouble());
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'contam': contam,
+    if (name == 'Other' && customDAC != null) 'customDAC': customDAC
+  };
+
+  static NuclideEntry fromJson(Map<String, dynamic> j) => NuclideEntry(
+    name: j['name'] ?? 'Other',
+    contam: (j['contam'] ?? 0).toDouble(),
+    customDAC: j['customDAC']?.toDouble()
+  );
 
   void disposeControllers() {
     contamController.dispose();
+    dacController.dispose();
   }
 }
 
@@ -214,7 +239,21 @@ class ExtremityEntry {
   double time;
   final TextEditingController doseRateController = TextEditingController();
   final TextEditingController timeController = TextEditingController();
-  ExtremityEntry({this.nuclide, this.doseRate = 0.0, this.time = 0.0});
+
+  ExtremityEntry({this.nuclide, this.doseRate = 0.0, this.time = 0.0}) {
+    // Initialize controllers with the current values
+    doseRateController.text = doseRate.toString();
+    timeController.text = time.toString();
+
+    // Keep model fields in sync with controllers
+    doseRateController.addListener(() {
+      doseRate = double.tryParse(doseRateController.text) ?? 0.0;
+    });
+    timeController.addListener(() {
+      time = double.tryParse(timeController.text) ?? 0.0;
+    });
+  }
+
   Map<String, dynamic> toJson() => {'nuclide': nuclide, 'doseRate': doseRate, 'time': time};
   static ExtremityEntry fromJson(Map<String, dynamic> j) => ExtremityEntry(nuclide: j['nuclide'], doseRate: (j['doseRate'] ?? 0).toDouble(), time: (j['time'] ?? 0).toDouble());
 
@@ -449,9 +488,14 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final collectiveEffective = collectiveExternal + totalCollectiveInternal;
     final individualEffective = workers > 0 ? collectiveEffective / workers : 0.0;
 
+    // Calculate extremity dose ONLY from manually entered extremity entries
+    // Each entry contributes: doseRate (mrem/hr) * time (hr) = total mrem per person
     double totalExtremityDose = 0.0;
     for (final e in t.extremities) {
-      totalExtremityDose += e.doseRate * e.time; // per-person extremity dose (mrem)
+      // Only include entries with positive dose rate AND time
+      if (e.doseRate > 0.0 && e.time > 0.0) {
+        totalExtremityDose += e.doseRate * e.time;
+      }
     }
 
   // totalExtremityDose currently holds per-person extremity dose (sum of e.doseRate*e.time)
@@ -493,9 +537,17 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     return v.toStringAsFixed(3);
   }
 
+  // Get DAC value for a nuclide, using custom DAC for "Other" nuclides
+  double getDAC(NuclideEntry n) {
+    if (n.name == 'Other' && n.customDAC != null && n.customDAC! > 0) {
+      return n.customDAC!;
+    }
+    return dacValues[n.name] ?? 1e-12;
+  }
+
   // Compute per-nuclide dose components in one place to keep UI and totals consistent.
   Map<String, double> computeNuclideDose(NuclideEntry n, TaskData t) {
-    final dac = dacValues[n.name] ?? 1e-12;
+    final dac = getDAC(n);
     final safeDac = (dac == 0.0) ? 1e-12 : dac;
     final mPIF = computeMPIF(t);
     final airConc = (n.contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
@@ -552,7 +604,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
       for (final n in t.nuclides) {
         final contam = n.contam;
-        final dac = dacValues[n.name] ?? 1e-12;
+        final dac = getDAC(n);
         final mPIF = computeMPIF(t);
         final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
         final dacFractionWithBoth = (airConc / dac) / (t.pfe * t.pfr);
@@ -780,7 +832,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       double taskDacEngOnly = 0.0;
       for (final n in t.nuclides) {
         final contam = n.contam;
-        final dac = dacValues[n.name] ?? 1e-12;
+        final dac = getDAC(n);
         final mPIF = computeMPIF(t);
         final airConc = (contam / 100) * mPIF * (1 / 100) * (1 / 2.22e6);
         final dacWithBoth = (airConc / dac) / (t.pfe * t.pfr);
@@ -2345,7 +2397,9 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                       final dac = dacValues[option] ?? 1e-12;
                                       return ListTile(
                                         title: Text(option),
-                                        subtitle: Text('DAC: ${formatNumber(dac)}'),
+                                        subtitle: option == 'Other'
+                                            ? const Text('Custom DAC required')
+                                            : Text('DAC: ${formatNumber(dac)}'),
                                         onTap: () => onSelected(option),
                                       );
                                     },
@@ -2353,7 +2407,15 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                 ),
                               );
                             },
-                            onSelected: (selection) { n.name = selection; setState(() {}); },
+                            onSelected: (selection) {
+                              n.name = selection;
+                              // Clear custom DAC when changing from "Other" to a specific nuclide
+                              if (selection != 'Other') {
+                                n.customDAC = null;
+                                n.dacController.clear();
+                              }
+                              setState(() {});
+                            },
                             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
                               controller.text = n.name ?? '';
                               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2380,6 +2442,33 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                           ),
                         ),
                         const SizedBox(width: 8),
+                        // Show DAC input field when "Other" is selected
+                        if (n.name == 'Other') ...[
+                          Expanded(child: TextField(
+                            decoration: InputDecoration(
+                              labelText: 'DAC (µCi/mL)',
+                              hintText: 'Required for Other',
+                              filled: true,
+                              fillColor: Colors.orange.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.orange.shade300),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.orange.shade300),
+                              ),
+                            ),
+                            controller: n.dacController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              // allow digits, decimal point, exponent notation (e/E) and signs
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9eE+\-\.]')),
+                            ],
+                            onChanged: (v) { setState(() {}); },
+                          )),
+                          const SizedBox(width: 8),
+                        ],
                         Expanded(child: TextField(
                           decoration: const InputDecoration(labelText: 'Contam. (dpm/100cm²)', hintText: 'enter contamination level here'),
                           controller: n.contamController,
