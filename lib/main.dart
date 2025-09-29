@@ -209,14 +209,14 @@ class NuclideEntry {
 }
 
 class ExtremityEntry {
-  String nuclide;
+  String? nuclide;
   double doseRate;
   double time;
   final TextEditingController doseRateController = TextEditingController();
   final TextEditingController timeController = TextEditingController();
-  ExtremityEntry({this.nuclide = 'Other', this.doseRate = 0.0, this.time = 0.0});
+  ExtremityEntry({this.nuclide, this.doseRate = 0.0, this.time = 0.0});
   Map<String, dynamic> toJson() => {'nuclide': nuclide, 'doseRate': doseRate, 'time': time};
-  static ExtremityEntry fromJson(Map<String, dynamic> j) => ExtremityEntry(nuclide: j['nuclide'] ?? 'Other', doseRate: (j['doseRate'] ?? 0).toDouble(), time: (j['time'] ?? 0).toDouble());
+  static ExtremityEntry fromJson(Map<String, dynamic> j) => ExtremityEntry(nuclide: j['nuclide'], doseRate: (j['doseRate'] ?? 0).toDouble(), time: (j['time'] ?? 0).toDouble());
 
   void disposeControllers() {
     doseRateController.dispose();
@@ -1528,7 +1528,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                   animation: tabController,
                                   builder: (context, child) {
                                     final selectedIndex = tabController.index;
-                                    const tabWidth = 120.0; // Fixed width for consistent sliding
+                                    const tabWidth = 160.0; // Fixed width for consistent sliding
                                     const tabSpacing = 4.0;
 
                                     return AnimatedPositioned(
@@ -1566,7 +1566,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                 Row(
                                   children: List.generate(tabs.length, (index) {
                                     final isSelected = tabController.index == index;
-                                    const tabWidth = 120.0;
+                                    const tabWidth = 160.0;
 
                                     return Container(
                                       width: tabWidth,
@@ -2150,7 +2150,6 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     return Row(children: [
                         Expanded(
                           child: Autocomplete<String>(
-                            initialValue: TextEditingValue(text: e.nuclide ?? ''),
                             optionsBuilder: (TextEditingValue textEditingValue) {
                               if (textEditingValue.text == '') return dacValues.keys.toList();
                               return dacValues.keys.where((k) => k.toLowerCase().contains(textEditingValue.text.toLowerCase()));
@@ -2165,10 +2164,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                     itemCount: options.length,
                                     itemBuilder: (context, index) {
                                       final option = options.elementAt(index);
-                                      final dac = dacValues[option] ?? 1e-12;
                                       return ListTile(
                                         title: Text(option),
-                                        subtitle: Text('DAC: ${formatNumber(dac)}'),
                                         onTap: () => onSelected(option),
                                       );
                                     },
@@ -2183,7 +2180,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                                 controller: controller,
                                 focusNode: focusNode,
                                 decoration: InputDecoration(
-                                  labelText: 'Nuclide',
+                                  hintText: 'Select a radionuclide',
                                   filled: true,
                                   fillColor: Colors.grey.shade50,
                                   border: OutlineInputBorder(
