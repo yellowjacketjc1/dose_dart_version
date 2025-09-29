@@ -1,0 +1,110 @@
+{
+  "projectInfo": {
+    "workOrder": "WO-2024-004",
+    "date": "2024-03-30",
+    "description": "Edge case scenarios - Testing boundary conditions, zero values, and extreme parameters"
+  },
+  "tasks": [
+    {
+      "title": "Low Activity Background Survey",
+      "location": "Clean Room - Background Check",
+      "workers": 1,
+      "hours": 0.5,
+      "mpifR": 1.0,
+      "mpifC": 1.0,
+      "mpifD": 1.0,
+      "mpifS": 1.0,
+      "mpifU": 1.0,
+      "doseRate": 0.001,
+      "pfr": 1.0,
+      "pfe": 1.0,
+      "nuclides": [
+        {
+          "name": "Background",
+          "contam": 0.0
+        }
+      ],
+      "extremities": []
+    },
+    {
+      "title": "Maximum Exposure Limit Test",
+      "location": "Test Chamber - Controlled Environment",
+      "workers": 1,
+      "hours": 0.1,
+      "mpifR": 0.000001,
+      "mpifC": 10000.0,
+      "mpifD": 0.001,
+      "mpifS": 0.001,
+      "mpifU": 0.001,
+      "doseRate": 100.0,
+      "pfr": 0.000001,
+      "pfe": 0.000001,
+      "nuclides": [
+        {
+          "name": "Cs-137",
+          "contam": 10000000.0
+        },
+        {
+          "name": "Co-60",
+          "contam": 5000000.0
+        },
+        {
+          "name": "I-131",
+          "contam": 3000000.0
+        },
+        {
+          "name": "Tc-99m",
+          "contam": 1000000.0
+        },
+        {
+          "name": "Other",
+          "contam": 500000.0
+        }
+      ],
+      "extremities": [
+        {
+          "nuclide": "Cs-137",
+          "doseRate": 50.0,
+          "time": 0.1
+        },
+        {
+          "nuclide": "Co-60",
+          "doseRate": 75.0,
+          "time": 0.05
+        },
+        {
+          "nuclide": "Other",
+          "doseRate": 25.0,
+          "time": 0.2
+        }
+      ]
+    },
+    {
+      "title": "Extended Duration - Maintenance",
+      "location": "Facility Wide - Annual Maintenance",
+      "workers": 10,
+      "hours": 168.0,
+      "mpifR": 0.5,
+      "mpifC": 2.0,
+      "mpifD": 0.8,
+      "mpifS": 0.9,
+      "mpifU": 0.95,
+      "doseRate": 0.1,
+      "pfr": 0.5,
+      "pfe": 0.5,
+      "nuclides": [
+        {
+          "name": "Mixed Fission Products",
+          "contam": 25000.0
+        }
+      ],
+      "extremities": []
+    }
+  ],
+  "triggerOverrides": {
+    "lowActivity": true,
+    "extendedDuration": true,
+    "multipleWorkers": true,
+    "specialEquipment": false
+  }
+}

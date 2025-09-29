@@ -1,0 +1,31 @@
+{
+  "projectInfo": {
+    "workOrder": "WO-2024-001",
+    "date": "2024-03-15",
+    "description": "Basic contamination survey with respiratory protection - Sr-90 source handling"
+  },
+  "tasks": [
+    {
+      "title": "Source Handling - Lab Bench",
+      "location": "Room 142 - Hot Lab",
+      "workers": 2,
+      "hours": 4.0,
+      "mpifR": 0.1,
+      "mpifC": 100.0,
+      "mpifD": 1.0,
+      "mpifS": 1.0,
+      "mpifU": 1.0,
+      "doseRate": 0.5,
+      "pfr": 0.1,
+      "pfe": 1.0,
+      "nuclides": [
+        {
+          "name": "Sr-90",
+          "contam": 50000.0
+        }
+      ],
+      "extremities": []
+    }
+  ],
+  "triggerOverrides": {}
+}

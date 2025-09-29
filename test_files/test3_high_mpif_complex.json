@@ -1,0 +1,83 @@
+{
+  "projectInfo": {
+    "workOrder": "WO-2024-003",
+    "date": "2024-03-25",
+    "description": "High mPIF scenario with complex protective measures - Emergency response training with multiple protection factors"
+  },
+  "tasks": [
+    {
+      "title": "Emergency Response - Spill Cleanup",
+      "location": "Hot Cell #4 - Emergency Scenario",
+      "workers": 3,
+      "hours": 8.0,
+      "mpifR": 0.001,
+      "mpifC": 1000.0,
+      "mpifD": 0.1,
+      "mpifS": 0.5,
+      "mpifU": 0.8,
+      "doseRate": 15.0,
+      "pfr": 0.001,
+      "pfe": 0.001,
+      "nuclides": [
+        {
+          "name": "Pu-239",
+          "contam": 1000000.0
+        },
+        {
+          "name": "Am-241",
+          "contam": 500000.0
+        },
+        {
+          "name": "Cs-137",
+          "contam": 2000000.0
+        },
+        {
+          "name": "Co-60",
+          "contam": 800000.0
+        }
+      ],
+      "extremities": [
+        {
+          "nuclide": "Pu-239",
+          "doseRate": 5.0,
+          "time": 2.0
+        },
+        {
+          "nuclide": "Co-60",
+          "doseRate": 12.0,
+          "time": 1.5
+        }
+      ]
+    },
+    {
+      "title": "Decontamination - Personnel",
+      "location": "Decon Station Alpha",
+      "workers": 2,
+      "hours": 2.0,
+      "mpifR": 0.01,
+      "mpifC": 50.0,
+      "mpifD": 0.5,
+      "mpifS": 1.0,
+      "mpifU": 1.0,
+      "doseRate": 1.0,
+      "pfr": 0.01,
+      "pfe": 0.1,
+      "nuclides": [
+        {
+          "name": "Pu-239",
+          "contam": 100000.0
+        },
+        {
+          "name": "Am-241",
+          "contam": 50000.0
+        }
+      ],
+      "extremities": []
+    }
+  ],
+  "triggerOverrides": {
+    "highContamination": true,
+    "restrictedArea": true,
+    "specialProcedures": true
+  }
+}

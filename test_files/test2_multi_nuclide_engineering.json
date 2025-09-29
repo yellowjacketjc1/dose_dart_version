@@ -1,0 +1,64 @@
+{
+  "projectInfo": {
+    "workOrder": "WO-2024-002",
+    "date": "2024-03-20",
+    "description": "Multi-nuclide contamination with engineering controls - Hood work and glove box operations"
+  },
+  "tasks": [
+    {
+      "title": "Glove Box - Mixed Waste Processing",
+      "location": "Room 205 - Glove Box Area",
+      "workers": 1,
+      "hours": 6.0,
+      "mpifR": 1.0,
+      "mpifC": 10.0,
+      "mpifD": 1.0,
+      "mpifS": 1.0,
+      "mpifU": 1.0,
+      "doseRate": 2.0,
+      "pfr": 1.0,
+      "pfe": 0.1,
+      "nuclides": [
+        {
+          "name": "Cs-137",
+          "contam": 200000.0
+        },
+        {
+          "name": "Co-60",
+          "contam": 150000.0
+        },
+        {
+          "name": "Am-241",
+          "contam": 75000.0
+        }
+      ],
+      "extremities": []
+    },
+    {
+      "title": "Fume Hood - Sample Preparation",
+      "location": "Room 205 - Hood #3",
+      "workers": 2,
+      "hours": 3.0,
+      "mpifR": 1.0,
+      "mpifC": 100.0,
+      "mpifD": 1.0,
+      "mpifS": 1.0,
+      "mpifU": 1.0,
+      "doseRate": 0.2,
+      "pfr": 1.0,
+      "pfe": 0.01,
+      "nuclides": [
+        {
+          "name": "Cs-137",
+          "contam": 25000.0
+        },
+        {
+          "name": "Sr-90",
+          "contam": 100000.0
+        }
+      ],
+      "extremities": []
+    }
+  ],
+  "triggerOverrides": {}
+}
