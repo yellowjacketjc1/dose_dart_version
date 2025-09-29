@@ -268,7 +268,7 @@ class _GradientPainter extends BoxPainter {
 }
 class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMixin {
   final Map<String, double> dacValues = const {
-    "Ac-227": 3e-13, "Ag-108m": 5e-8, "Ag-110m": 3e-8, "Al-26": 2e-9, "Am-241": 5e-12, "Am-243": 5e-12,
+    "Ac-227": 2e-13, "Ag-108m": 5e-8, "Ag-110m": 3e-8, "Al-26": 2e-9, "Am-241": 5e-12, "Am-243": 5e-12,
     "Ar-37": 4e-5, "Ar-39": 3e-6, "Ar-41": 3e-6, "As-73": 6e-7, "As-74": 2e-7, "As-76": 2e-7, "As-77": 7e-7,
     "At-211": 2e-9, "Au-195": 2e-6, "Au-198": 2e-7, "Au-199": 3e-7, "Ba-131": 3e-7, "Ba-133": 2e-7, "Ba-140": 4e-8,
     "Be-7": 2e-6, "Be-10": 2e-8, "Bi-206": 3e-8, "Bi-207": 4e-8, "Bi-210": 2e-9, "Bi-212": 6e-8, "Bk-249": 2e-9,
@@ -345,6 +345,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   TextEditingController dateController = TextEditingController();
   // user overrides for trigger checkboxes
   Map<String, bool> triggerOverrides = {};
+  // justifications for overrides
+  Map<String, String> overrideJustifications = {};
 
   late TabController tabController;
 
@@ -636,6 +638,132 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     };
   }
 
+  // Get final trigger states considering both computed triggers and manual overrides
+  Map<String, bool> getFinalTriggerStates() {
+    final computedTriggersMap = computeGlobalTriggers();
+    final finalStates = <String, bool>{};
+
+    // Individual triggers
+    for (final key in ['sampling1', 'sampling2', 'sampling3', 'sampling4', 'sampling5', 'camsRequired',
+                       'alara1', 'alara2', 'alara3', 'alara4', 'alara5', 'alara6', 'alara7', 'alara8']) {
+      if (computedTriggers.contains(key)) {
+        // For computed triggers, use override if present, otherwise use computed value
+        finalStates[key] = triggerOverrides.containsKey(key)
+            ? triggerOverrides[key]!
+            : (computedTriggersMap[key] ?? false);
+      } else {
+        // For manual triggers, use override value (defaulting to false if not set)
+        finalStates[key] = triggerOverrides[key] ?? false;
+      }
+    }
+
+    // Aggregate triggers based on final individual trigger states
+    finalStates['airSampling'] = finalStates['sampling1']! || finalStates['sampling2']! ||
+                                 finalStates['sampling3']! || finalStates['sampling4']! || finalStates['sampling5']!;
+    finalStates['alaraReview'] = finalStates['alara1']! || finalStates['alara2']! || finalStates['alara3']! ||
+                                finalStates['alara4']! || finalStates['alara5']! || finalStates['alara6']! ||
+                                finalStates['alara7']! || finalStates['alara8']!;
+
+    return finalStates;
+  }
+
+  // Define which triggers are computed automatically vs manual
+  static const Set<String> computedTriggers = {
+    'sampling1',    // Worker likely to exceed 40 DAC-hours per year (calculated)
+    'sampling2',    // Respiratory protection prescribed (calculated)
+    'sampling4',    // Estimated intake > 10% ALI or 500 mrem (calculated)
+    'sampling5',    // Airborne concentration > 0.3 DAC (calculated)
+    'camsRequired', // CAMs required (calculated)
+    'alara2',       // Individual total effective dose > 500 mrem (calculated)
+    'alara3',       // Individual extremity/skin dose > 5000 mrem (calculated)
+    'alara4',       // Collective dose > 750 person-mrem (calculated)
+    'alara5',       // Airborne >200 DAC averaged over 1 hr (calculated)
+    'alara6',       // Removable contamination > 1000x Appendix D (calculated)
+    'alara7',       // Worker likely to receive internal dose >100 mrem (calculated)
+    'alara8',       // Entry into areas with dose rates > 10 rem/hr (calculated)
+  };
+
+  // Manual triggers that don't require justification:
+  // 'sampling3' - Air sample needed to estimate internal dose (subjective)
+  // 'alara1' - Non-routine or complex work (subjective)
+
+  // Handle trigger override with justification requirement
+  void handleTriggerOverride(String triggerKey, bool? newValue) async {
+    if (newValue == null) return;
+
+    // For manual triggers, just set the value directly without justification
+    if (!computedTriggers.contains(triggerKey)) {
+      setState(() {
+        if (newValue) {
+          triggerOverrides[triggerKey] = newValue;
+        } else {
+          triggerOverrides.remove(triggerKey);
+        }
+      });
+      return;
+    }
+
+    final computedTriggersMap = computeGlobalTriggers();
+    final computedValue = computedTriggersMap[triggerKey] ?? false;
+
+    // If user is trying to override a computed trigger, require justification
+    if (computedValue != newValue) {
+      final justification = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text('Override Justification Required'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('You are overriding an automatically calculated trigger.'),
+              SizedBox(height: 8),
+              Text('Computed value: ${computedValue ? "Required" : "Not Required"}'),
+              Text('Override value: ${newValue ? "Required" : "Not Required"}'),
+              SizedBox(height: 16),
+              Text('Please provide justification for this override:'),
+              SizedBox(height: 8),
+              TextField(
+                maxLines: 3,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter justification...',
+                ),
+                onChanged: (text) => _tempJustification = text,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, _tempJustification),
+              child: Text('Override'),
+            ),
+          ],
+        ),
+      );
+
+      if (justification != null && justification.isNotEmpty) {
+        setState(() {
+          triggerOverrides[triggerKey] = newValue;
+          overrideJustifications[triggerKey] = justification;
+        });
+      }
+    } else {
+      // If setting back to computed value, remove override
+      setState(() {
+        triggerOverrides.remove(triggerKey);
+        overrideJustifications.remove(triggerKey);
+      });
+    }
+  }
+
+  String _tempJustification = '';
+
   // Return short textual reasons for why each trigger was set (task numbers and brief reason)
   Map<String, String> computeTriggerReasons() {
     final reasons = <String, String>{};
@@ -702,6 +830,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         },
         'tasks': tasks.map((t) => t.toJson()).toList(),
         'triggerOverrides': triggerOverrides,
+        'overrideJustifications': overrideJustifications,
       };
       final jsonStr = jsonEncode(state);
 
@@ -731,6 +860,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       },
       'tasks': tasks.map((t) => t.toJson()).toList(),
       'triggerOverrides': triggerOverrides,
+      'overrideJustifications': overrideJustifications,
     };
     final jsonStr = jsonEncode(state);
     await Clipboard.setData(ClipboardData(text: jsonStr));
@@ -769,6 +899,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           tasks = (state['tasks'] as List? ?? []).map((t) => TaskData.fromJson(t)).toList();
           // load trigger overrides if present
           triggerOverrides = Map<String, bool>.from(state['triggerOverrides'] ?? {});
+          overrideJustifications = Map<String, String>.from(state['overrideJustifications'] ?? {});
           tabController = TabController(length: tasks.length + 1, vsync: this);
         });
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File loaded successfully')));
@@ -794,6 +925,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         tasks = (state['tasks'] as List? ?? []).map((t) => TaskData.fromJson(t)).toList();
         // load trigger overrides if present
         triggerOverrides = Map<String, bool>.from(state['triggerOverrides'] ?? {});
+        overrideJustifications = Map<String, String>.from(state['overrideJustifications'] ?? {});
         tabController = TabController(length: tasks.length + 1, vsync: this);
       });
   if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State loaded from clipboard.')));
@@ -806,7 +938,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     double totalIndividualEffective = 0.0;
     double totalIndividualExtremity = 0.0;
     final rows = <TableRow>[];
-    final triggers = computeGlobalTriggers();
+    final computedTriggers = computeGlobalTriggers();
+    final finalTriggers = getFinalTriggerStates();
 
     if (tasks.isEmpty) {
       return Center(
@@ -992,15 +1125,15 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         // Separate trigger cards for ALARA/CAMs/Air Sampling
         Row(children: [
           Expanded(child: Card(
-            color: triggers['alaraReview'] == true ? Colors.red.shade50 : Colors.grey.shade100,
+            color: finalTriggers['alaraReview'] == true ? Colors.red.shade50 : Colors.grey.shade100,
             elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 children: [
                   Icon(
-                    triggers['alaraReview'] == true ? Icons.check_circle : Icons.close,
-                    color: triggers['alaraReview'] == true ? Colors.red : Colors.grey.shade600,
+                    finalTriggers['alaraReview'] == true ? Icons.check_circle : Icons.close,
+                    color: finalTriggers['alaraReview'] == true ? Colors.red : Colors.grey.shade600,
                     size: 24,
                   ),
                   const SizedBox(height: 4),
@@ -1009,14 +1142,14 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: triggers['alaraReview'] == true ? Colors.red.shade700 : Colors.grey.shade700,
+                      color: finalTriggers['alaraReview'] == true ? Colors.red.shade700 : Colors.grey.shade700,
                     ),
                   ),
                   Text(
-                    triggers['alaraReview'] == true ? 'Required' : 'Not Required',
+                    finalTriggers['alaraReview'] == true ? 'Required' : 'Not Required',
                     style: TextStyle(
                       fontSize: 10,
-                      color: triggers['alaraReview'] == true ? Colors.red.shade600 : Colors.grey.shade600,
+                      color: finalTriggers['alaraReview'] == true ? Colors.red.shade600 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -1025,15 +1158,15 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           )),
           const SizedBox(width: 8),
           Expanded(child: Card(
-            color: triggers['airSampling'] == true ? Colors.red.shade50 : Colors.grey.shade100,
+            color: finalTriggers['airSampling'] == true ? Colors.red.shade50 : Colors.grey.shade100,
             elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 children: [
                   Icon(
-                    triggers['airSampling'] == true ? Icons.check_circle : Icons.close,
-                    color: triggers['airSampling'] == true ? Colors.red : Colors.grey.shade600,
+                    finalTriggers['airSampling'] == true ? Icons.check_circle : Icons.close,
+                    color: finalTriggers['airSampling'] == true ? Colors.red : Colors.grey.shade600,
                     size: 24,
                   ),
                   const SizedBox(height: 4),
@@ -1042,14 +1175,14 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: triggers['airSampling'] == true ? Colors.red.shade700 : Colors.grey.shade700,
+                      color: finalTriggers['airSampling'] == true ? Colors.red.shade700 : Colors.grey.shade700,
                     ),
                   ),
                   Text(
-                    triggers['airSampling'] == true ? 'Required' : 'Not Required',
+                    finalTriggers['airSampling'] == true ? 'Required' : 'Not Required',
                     style: TextStyle(
                       fontSize: 10,
-                      color: triggers['airSampling'] == true ? Colors.red.shade600 : Colors.grey.shade600,
+                      color: finalTriggers['airSampling'] == true ? Colors.red.shade600 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -1058,15 +1191,15 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           )),
           const SizedBox(width: 8),
           Expanded(child: Card(
-            color: triggers['camsRequired'] == true ? Colors.red.shade50 : Colors.grey.shade100,
+            color: finalTriggers['camsRequired'] == true ? Colors.red.shade50 : Colors.grey.shade100,
             elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(12.0),
               child: Column(
                 children: [
                   Icon(
-                    triggers['camsRequired'] == true ? Icons.check_circle : Icons.close,
-                    color: triggers['camsRequired'] == true ? Colors.red : Colors.grey.shade600,
+                    finalTriggers['camsRequired'] == true ? Icons.check_circle : Icons.close,
+                    color: finalTriggers['camsRequired'] == true ? Colors.red : Colors.grey.shade600,
                     size: 24,
                   ),
                   const SizedBox(height: 4),
@@ -1075,14 +1208,14 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: triggers['camsRequired'] == true ? Colors.red.shade700 : Colors.grey.shade700,
+                      color: finalTriggers['camsRequired'] == true ? Colors.red.shade700 : Colors.grey.shade700,
                     ),
                   ),
                   Text(
-                    triggers['camsRequired'] == true ? 'Required' : 'Not Required',
+                    finalTriggers['camsRequired'] == true ? 'Required' : 'Not Required',
                     style: TextStyle(
                       fontSize: 10,
-                      color: triggers['camsRequired'] == true ? Colors.red.shade600 : Colors.grey.shade600,
+                      color: finalTriggers['camsRequired'] == true ? Colors.red.shade600 : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -1439,7 +1572,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   }
 
   Widget buildTriggers() {
-    final triggers = computeGlobalTriggers();
+    final computedTriggers = computeGlobalTriggers();
+    final finalTriggers = getFinalTriggerStates();
     final reasons = computeTriggerReasons();
     // Build ALARA card and Air Sampling card similar to original HTML checklist
     return Column(children: [
@@ -1451,42 +1585,48 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
             const Text('Workplace Air Sampling Triggers', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             CheckboxListTile(
-              value: triggerOverrides.containsKey('sampling1') ? triggerOverrides['sampling1']! : (triggers['sampling1'] ?? false),
-              onChanged: (v) { setState(() { triggerOverrides['sampling1'] = v ?? false; }); },
+              value: finalTriggers['sampling1'] ?? false,
+              onChanged: (v) { handleTriggerOverride('sampling1', v); },
               title: const Text('Worker likely to exceed 40 DAC-hours per year (air sampling required)'),
               controlAffinity: ListTileControlAffinity.leading,
             ),
             if (reasons.containsKey('sampling1')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling1']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('sampling1')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['sampling1']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
             CheckboxListTile(
-              value: triggerOverrides.containsKey('sampling2') ? triggerOverrides['sampling2']! : (triggers['sampling2'] ?? false),
-              onChanged: (v) { setState(() { triggerOverrides['sampling2'] = v ?? false; }); },
+              value: finalTriggers['sampling2'] ?? false,
+              onChanged: (v) { handleTriggerOverride('sampling2', v); },
               title: const Text('Respiratory protection prescribed (air sampling required)'), controlAffinity: ListTileControlAffinity.leading,
             ),
             if (reasons.containsKey('sampling2')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling2']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('sampling2')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['sampling2']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
             CheckboxListTile(
-              value: triggerOverrides.containsKey('sampling3') ? triggerOverrides['sampling3']! : (triggers['sampling3'] ?? false),
-              onChanged: (v) { setState(() { triggerOverrides['sampling3'] = v ?? false; }); },
+              value: finalTriggers['sampling3'] ?? false,
+              onChanged: (v) { handleTriggerOverride('sampling3', v); },
               title: const Text('Air sample needed to estimate internal dose'), controlAffinity: ListTileControlAffinity.leading,
             ),
             if (reasons.containsKey('sampling3')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling3']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('sampling3')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['sampling3']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
             CheckboxListTile(
-              value: triggerOverrides.containsKey('sampling4') ? triggerOverrides['sampling4']! : (triggers['sampling4'] ?? false),
-              onChanged: (v) { setState(() { triggerOverrides['sampling4'] = v ?? false; }); },
+              value: finalTriggers['sampling4'] ?? false,
+              onChanged: (v) { handleTriggerOverride('sampling4', v); },
               title: const Text('Estimated intake > 10% ALI or 500 mrem'), controlAffinity: ListTileControlAffinity.leading,
             ),
             if (reasons.containsKey('sampling4')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling4']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('sampling4')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['sampling4']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
             CheckboxListTile(
-              value: triggerOverrides.containsKey('sampling5') ? triggerOverrides['sampling5']! : (triggers['sampling5'] ?? false),
-              onChanged: (v) { setState(() { triggerOverrides['sampling5'] = v ?? false; }); },
+              value: finalTriggers['sampling5'] ?? false,
+              onChanged: (v) { handleTriggerOverride('sampling5', v); },
               title: const Text('Airborne concentration > 0.3 DAC averaged over 40 hr or >1 DAC spike'), controlAffinity: ListTileControlAffinity.leading,
             ),
             if (reasons.containsKey('sampling5')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['sampling5']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('sampling5')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['sampling5']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
             CheckboxListTile(
-              value: triggerOverrides.containsKey('camsRequired') ? triggerOverrides['camsRequired']! : (triggers['camsRequired'] ?? false),
-              onChanged: (v) { setState(() { triggerOverrides['camsRequired'] = v ?? false; }); },
+              value: finalTriggers['camsRequired'] ?? false,
+              onChanged: (v) { handleTriggerOverride('camsRequired', v); },
               title: const Text('CAMs required (worker > 40 DAC-hrs in week)'), controlAffinity: ListTileControlAffinity.leading,
             ),
             if (reasons.containsKey('camsRequired')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['camsRequired']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('camsRequired')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['camsRequired']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
           ]),
         ),
       ),
@@ -1498,22 +1638,30 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('ALARA Trigger Review', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara1') ? triggerOverrides['alara1']! : (triggers['alara1'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara1'] = v ?? false; }); }, title: const Text('Non-routine or complex work'), controlAffinity: ListTileControlAffinity.leading),
+            CheckboxListTile(value: finalTriggers['alara1'] ?? false, onChanged: (v) { handleTriggerOverride('alara1', v); }, title: const Text('Non-routine or complex work'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara1')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara1']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara2') ? triggerOverrides['alara2']! : (triggers['alara2'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara2'] = v ?? false; }); }, title: const Text('Estimated individual total effective dose > 500 mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara1')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara1']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara2'] ?? false, onChanged: (v) { handleTriggerOverride('alara2', v); }, title: const Text('Estimated individual total effective dose > 500 mrem'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara2')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara2']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara3') ? triggerOverrides['alara3']! : (triggers['alara3'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara3'] = v ?? false; }); }, title: const Text('Estimated individual extremity/skin dose > 5000 mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara2')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara2']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara3'] ?? false, onChanged: (v) { handleTriggerOverride('alara3', v); }, title: const Text('Estimated individual extremity/skin dose > 5000 mrem'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara3')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara3']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara4') ? triggerOverrides['alara4']! : (triggers['alara4'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara4'] = v ?? false; }); }, title: const Text('Collective dose > 750 person-mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara3')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara3']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara4'] ?? false, onChanged: (v) { handleTriggerOverride('alara4', v); }, title: const Text('Collective dose > 750 person-mrem'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara4')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara4']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara5') ? triggerOverrides['alara5']! : (triggers['alara5'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara5'] = v ?? false; }); }, title: const Text('Airborne >200 DAC averaged over 1 hr or spike >1000 DAC'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara4')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara4']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara5'] ?? false, onChanged: (v) { handleTriggerOverride('alara5', v); }, title: const Text('Airborne >200 DAC averaged over 1 hr or spike >1000 DAC'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara5')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara5']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara6') ? triggerOverrides['alara6']! : (triggers['alara6'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara6'] = v ?? false; }); }, title: const Text('Removable contamination > 1000x Appendix D levels'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara5')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara5']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara6'] ?? false, onChanged: (v) { handleTriggerOverride('alara6', v); }, title: const Text('Removable contamination > 1000x Appendix D levels'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara6')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara6']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara7') ? triggerOverrides['alara7']! : (triggers['alara7'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara7'] = v ?? false; }); }, title: const Text('Worker likely to receive internal dose >100 mrem'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara6')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara6']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara7'] ?? false, onChanged: (v) { handleTriggerOverride('alara7', v); }, title: const Text('Worker likely to receive internal dose >100 mrem'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara7')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara7']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
-            CheckboxListTile(value: triggerOverrides.containsKey('alara8') ? triggerOverrides['alara8']! : (triggers['alara8'] ?? false), onChanged: (v) { setState(() { triggerOverrides['alara8'] = v ?? false; }); }, title: const Text('Entry into areas with dose rates > 10 rem/hr at 30 cm'), controlAffinity: ListTileControlAffinity.leading),
+            if (overrideJustifications.containsKey('alara7')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara7']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
+            CheckboxListTile(value: finalTriggers['alara8'] ?? false, onChanged: (v) { handleTriggerOverride('alara8', v); }, title: const Text('Entry into areas with dose rates > 10 rem/hr at 30 cm'), controlAffinity: ListTileControlAffinity.leading),
             if (reasons.containsKey('alara8')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text(reasons['alara8']!, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+            if (overrideJustifications.containsKey('alara8')) Padding(padding: const EdgeInsets.only(left: 56.0, bottom: 8.0), child: Text('Override: ${overrideJustifications['alara8']!}', style: const TextStyle(fontSize: 12, color: Colors.orange, fontStyle: FontStyle.italic))),
           ]),
         ),
       ),
