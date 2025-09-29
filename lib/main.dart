@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'dart:html' as html;
 
 void main() {
   runApp(const DoseEstimateApp());
@@ -816,8 +817,30 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
   void saveToFile() async {
     if (kIsWeb) {
-      // For web, fall back to clipboard copy for now
-      exportState();
+      // For web, trigger file download
+      final state = {
+        'projectInfo': {
+          'workOrder': workOrderController.text,
+          'date': dateController.text,
+          'description': descriptionController.text,
+        },
+        'tasks': tasks.map((t) => t.toJson()).toList(),
+        'triggerOverrides': triggerOverrides,
+        'overrideJustifications': overrideJustifications,
+      };
+      final jsonStr = jsonEncode(state);
+      final bytes = utf8.encode(jsonStr);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.document.createElement('a') as html.AnchorElement
+        ..href = url
+        ..style.display = 'none'
+        ..download = 'dose_assessment_${DateTime.now().millisecondsSinceEpoch}.json';
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File downloaded successfully.')));
       return;
     }
 
@@ -851,21 +874,6 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     }
   }
 
-  void exportState() async {
-    final state = {
-      'projectInfo': {
-        'workOrder': workOrderController.text,
-        'date': dateController.text,
-        'description': descriptionController.text,
-      },
-      'tasks': tasks.map((t) => t.toJson()).toList(),
-      'triggerOverrides': triggerOverrides,
-      'overrideJustifications': overrideJustifications,
-    };
-    final jsonStr = jsonEncode(state);
-    await Clipboard.setData(ClipboardData(text: jsonStr));
-  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State copied to clipboard (JSON).')));
-  }
 
   void loadFromFile() async {
     try {
@@ -909,34 +917,12 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     }
   }
 
-  void importStateFromClipboard() async {
-    final data = await Clipboard.getData('text/plain');
-    if (data == null || data.text == null) return;
-    try {
-      final Map<String, dynamic> state = jsonDecode(data.text!);
-      setState(() {
-        workOrderController.text = state['projectInfo']?['workOrder'] ?? '';
-        dateController.text = state['projectInfo']?['date'] ?? '';
-        descriptionController.text = state['projectInfo']?['description'] ?? '';
-        // dispose existing task controllers first
-        for (final tt in tasks) {
-          tt.disposeControllers();
-        }
-        tasks = (state['tasks'] as List? ?? []).map((t) => TaskData.fromJson(t)).toList();
-        // load trigger overrides if present
-        triggerOverrides = Map<String, bool>.from(state['triggerOverrides'] ?? {});
-        overrideJustifications = Map<String, String>.from(state['overrideJustifications'] ?? {});
-        tabController = TabController(length: tasks.length + 1, vsync: this);
-      });
-  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('State loaded from clipboard.')));
-    } catch (e) {
-  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to parse JSON: $e')));
-    }
-  }
 
   Widget buildSummary() {
     double totalIndividualEffective = 0.0;
     double totalIndividualExtremity = 0.0;
+    double totalCollectiveExternal = 0.0;
+    double totalCollectiveInternal = 0.0;
     final rows = <TableRow>[];
     final computedTriggers = computeGlobalTriggers();
     final finalTriggers = getFinalTriggerStates();
@@ -964,11 +950,19 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       );
     }
 
+    double totalWorkers = 0.0;
+    Set<int> workerCounts = {};
+
     for (final t in tasks) {
       final totals = calculateTaskTotals(t);
       final workers = t.workers > 0 ? t.workers : 1;
+      workerCounts.add(workers);
+      totalWorkers += workers;
+
       final individualExternal = (totals['collectiveExternal']! / workers);
       final individualInternal = (totals['collectiveInternal']! / workers);
+      totalCollectiveExternal += totals['collectiveExternal']!;
+      totalCollectiveInternal += totals['collectiveInternal']!;
       final individualTotal = individualExternal + individualInternal;
       totalIndividualEffective += individualTotal;
       totalIndividualExtremity += totals['totalExtremityDose']! / (workers);
@@ -1002,29 +996,29 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Container(
-          width: 220,
-          padding: const EdgeInsets.all(12),
+          width: 280,
+          padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Task ${i + 1}: ${t.title}', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Ind. External', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text('Individual External', style: TextStyle(fontSize: 12, color: Colors.black54)),
                 Text(indExternal.toStringAsFixed(2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ]),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Ind. Internal', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text('Individual Internal', style: TextStyle(fontSize: 12, color: Colors.black54)),
                 Text(formatNumber(indInternal), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ]),
             ]),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Extremity', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text('Extremity Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
                 Text(indExtremity.toStringAsFixed(2), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               ]),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Total Ind.', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text('Total Individual', style: TextStyle(fontSize: 12, color: Colors.black54)),
                 Text(indTotal.toStringAsFixed(2), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.blueAccent)),
               ]),
             ])
@@ -1036,93 +1030,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Task summary cards first with enhanced styling
-        if (taskCards.isNotEmpty) ...[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              const SizedBox(width: 4),
-              ...taskCards.map((c) => Padding(padding: const EdgeInsets.only(right: 12.0), child: c)),
-              const SizedBox(width: 4),
-            ]),
-          ),
-          const SizedBox(height: 24),
-        ],
-
-        // Overall dose summary at the bottom with enhanced design
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.teal.shade50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.teal.shade200, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.teal.withOpacity(0.15),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Column(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.teal.shade600,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Overall Dose Summary',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: Card(
-                color: Colors.green.shade50,
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Total Effective Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      const SizedBox(height: 4),
-                      Text('${totalIndividualEffective.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
-                      const SizedBox(height: 2),
-                      const Text('(mrem per person)', style: TextStyle(fontSize: 10, color: Colors.black45)),
-                    ],
-                  ),
-                ),
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: Card(
-                color: Colors.orange.shade50,
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Total Extremity Dose', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      const SizedBox(height: 4),
-                      Text('${totalIndividualExtremity.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.orange)),
-                      const SizedBox(height: 2),
-                      const Text('(mrem per person)', style: TextStyle(fontSize: 10, color: Colors.black45)),
-                    ],
-                  ),
-                ),
-              )),
-            ]),
-          ]),
-        ),
+        // Detailed triggers section first
+        buildTriggers(),
         const SizedBox(height: 20),
 
-        // Separate trigger cards for ALARA/CAMs/Air Sampling
+        // ALARA/Air Sampling/CAMs indicator cards second
         Row(children: [
           Expanded(child: Card(
             color: finalTriggers['alaraReview'] == true ? Colors.red.shade50 : Colors.grey.shade100,
@@ -1223,10 +1135,210 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
             ),
           )),
         ]),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
 
-        // Detailed triggers section at the bottom
-        buildTriggers(),
+        // Task summary cards with enhanced styling
+        if (taskCards.isNotEmpty) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.blue.shade200, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade600,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Individual Task Summary',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(children: [
+                  const SizedBox(width: 4),
+                  ...taskCards.map((c) => Padding(padding: const EdgeInsets.only(right: 12.0), child: c)),
+                  const SizedBox(width: 4),
+                ]),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Overall dose summary last with enhanced design
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.teal.shade200, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade600,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Overall Dose Summary',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              // Main Collective Dose Card with breakdown
+              Expanded(
+                flex: 2,
+                child: Card(
+                  color: Colors.purple.shade50,
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Main title
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade600,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'TOTAL COLLECTIVE DOSE',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Total value
+                        Text(
+                          '${(totalCollectiveExternal + totalCollectiveInternal).toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.purple),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('person-mrem', style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 20),
+                        // Breakdown cards
+                        Row(children: [
+                          Expanded(child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.shade300),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('EXTERNAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.green.shade800)),
+                                const SizedBox(height: 4),
+                                Text('${totalCollectiveExternal.toStringAsFixed(2)}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.green.shade800)),
+                              ],
+                            ),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade300),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('INTERNAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.blue.shade800)),
+                                const SizedBox(height: 4),
+                                Text(formatNumber(totalCollectiveInternal), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.blue.shade800)),
+                              ],
+                            ),
+                          )),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Extremity Dose Card
+              Expanded(
+                flex: 1,
+                child: Card(
+                  color: Colors.orange.shade50,
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade600,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'EXTREMITY DOSE',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '${tasks.fold<double>(0, (sum, t) => sum + calculateTaskTotals(t)['totalExtremityDose']!).toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.orange),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text('person-mrem', style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ]),
+          ]),
+        ),
       ],
     );
   }
@@ -1247,8 +1359,6 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         actions: [
           IconButton(onPressed: saveToFile, icon: const Icon(Icons.save)),
           IconButton(onPressed: loadFromFile, icon: const Icon(Icons.folder_open)),
-          IconButton(onPressed: exportState, icon: const Icon(Icons.copy)),
-          IconButton(onPressed: importStateFromClipboard, icon: const Icon(Icons.upload)),
           IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
           IconButton(onPressed: () {
             // Diagnostic dialog: show per-nuclide computed fields for the first task (or a sample)
@@ -1382,7 +1492,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
             // Tab area centered inside a rounded Card with lively accents
             Container(
-                decoration: BoxDecoration(
+              decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha((0.08*255).round())),
@@ -2176,7 +2286,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
           const SizedBox(height: 12),
 
           Card(
-            child: ExpansionTile(title: const Text('Protection Factors (For this task)'), children: [
+            child: ExpansionTile(title: const Text('Protection Factors'), children: [
               Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Row(children: [
