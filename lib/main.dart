@@ -412,7 +412,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
   // Calculate task totals similar to the JS version
   Map<String, double> calculateTaskTotals(TaskData t) {
-    final workers = t.workers > 0 ? t.workers : 1;
+    final workers = t.workers;
     final hours = t.hours;
     final personHours = workers * hours;
     final mPIF = computeMPIF(t);
@@ -447,7 +447,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
     final collectiveExternal = t.doseRate * personHours;
     final collectiveEffective = collectiveExternal + totalCollectiveInternal;
-    final individualEffective = collectiveEffective / workers;
+    final individualEffective = workers > 0 ? collectiveEffective / workers : 0.0;
 
     double totalExtremityDose = 0.0;
     for (final e in t.extremities) {
@@ -503,7 +503,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final dacFractionEngOnly = dacFractionRaw / (t.pfe == 0.0 ? 1.0 : t.pfe);
     final dacFractionWithBoth = dacFractionRaw / ((t.pfe == 0.0 ? 1.0 : t.pfe) * (t.pfr == 0.0 ? 1.0 : t.pfr));
 
-    final workers = t.workers > 0 ? t.workers : 1;
+    final workers = t.workers;
     final personHours = workers * t.hours;
 
     // Unprotected collective dose
@@ -538,11 +538,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
     for (final t in tasks) {
       final totals = calculateTaskTotals(t);
-      final workers = t.workers > 0 ? t.workers : 1;
-      final individualExternal = (totals['collectiveExternal']! / workers);
-      final individualInternal = (totals['collectiveInternal']! / workers);
+      final workers = t.workers;
+      final individualExternal = workers > 0 ? (totals['collectiveExternal']! / workers) : 0.0;
+      final individualInternal = workers > 0 ? (totals['collectiveInternal']! / workers) : 0.0;
       totalIndividualEffectiveDose += individualExternal + individualInternal;
-      totalIndividualExtremityDose += totals['totalExtremityDose']! / workers;
+      totalIndividualExtremityDose += workers > 0 ? (totals['totalExtremityDose']! / workers) : 0.0;
       totalCollectiveDose += totals['collectiveEffective']!;
 
       maxDoseRate = maxDoseRate > t.doseRate ? maxDoseRate : t.doseRate;
@@ -584,8 +584,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     double totalInternalDoseOnly = 0.0;
     for (final t in tasks) {
       final totals = calculateTaskTotals(t);
-      final workers = t.workers > 0 ? t.workers : 1;
-      final individualInternal = (totals['collectiveInternal']! / workers);
+      final workers = t.workers;
+      final individualInternal = workers > 0 ? (totals['collectiveInternal']! / workers) : 0.0;
       totalInternalDoseOnly += individualInternal;
     }
     final alara7 = totalInternalDoseOnly > 100;
@@ -598,8 +598,8 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     final sampling3 = false; // subjective, left for user to check
     final sampling4 = tasks.any((t) {
       final totals = calculateTaskTotals(t);
-      final workers = t.workers > 0 ? t.workers : 1;
-      final individualInternal = (totals['collectiveInternal']! / workers);
+      final workers = t.workers;
+      final individualInternal = workers > 0 ? (totals['collectiveInternal']! / workers) : 0.0;
       return individualInternal > 500;
     });
     final condition1 = (maxDacHrsEngOnly / 40) > 0.3;
@@ -774,7 +774,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     for (var i = 0; i < tasks.length; i++) {
       final t = tasks[i];
       final totals = calculateTaskTotals(t);
-      final workers = t.workers > 0 ? t.workers : 1;
+      final workers = t.workers;
       // compute per-nuclide DAC fraction with both protections
       double taskDacWithResp = 0.0;
       double taskDacEngOnly = 0.0;
@@ -804,11 +804,11 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
       // alara triggers
       if ((totals['individualEffective'] ?? 0) > 500) reasons['alara2'] = 'Task ${i + 1} individual effective > 500 mrem';
-      if ((totals['totalExtremityDose'] ?? 0) / (t.workers > 0 ? t.workers : 1) > 5000) reasons['alara3'] = 'Task ${i + 1} extremity > 5000 mrem';
+      if (t.workers > 0 && (totals['totalExtremityDose'] ?? 0) / t.workers > 5000) reasons['alara3'] = 'Task ${i + 1} extremity > 5000 mrem';
       if ((totals['collectiveEffective'] ?? 0) > 750) reasons['alara4'] = 'Task ${i + 1} collective > 750 mrem';
       if (taskDacEngOnly * t.hours > 200) reasons['alara5'] = 'Task ${i + 1} DAC-hrs eng-only > 200';
       if (t.nuclides.any((n) => n.contam / 1000 > 1)) reasons['alara6'] = 'Task ${i + 1} contamination > 1000x Appendix D';
-      if ((totals['collectiveInternal'] ?? 0) / (t.workers > 0 ? t.workers : 1) > 100) reasons['alara7'] = 'Task ${i + 1} internal > 100 mrem';
+      if (t.workers > 0 && (totals['collectiveInternal'] ?? 0) / t.workers > 100) reasons['alara7'] = 'Task ${i + 1} internal > 100 mrem';
       if (t.doseRate > 10000) reasons['alara8'] = 'Task ${i + 1} dose rate > 10 rem/hr';
     }
 
@@ -955,12 +955,12 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
 
     for (final t in tasks) {
       final totals = calculateTaskTotals(t);
-      final workers = t.workers > 0 ? t.workers : 1;
+      final workers = t.workers;
       workerCounts.add(workers);
       totalWorkers += workers;
 
-      final individualExternal = (totals['collectiveExternal']! / workers);
-      final individualInternal = (totals['collectiveInternal']! / workers);
+      final individualExternal = workers > 0 ? (totals['collectiveExternal']! / workers) : 0.0;
+      final individualInternal = workers > 0 ? (totals['collectiveInternal']! / workers) : 0.0;
       totalCollectiveExternal += totals['collectiveExternal']!;
       totalCollectiveInternal += totals['collectiveInternal']!;
       final individualTotal = individualExternal + individualInternal;
@@ -974,7 +974,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
   Padding(padding: const EdgeInsets.all(8), child: Text(formatNumber(totals['totalDacFraction']!))),
         Padding(padding: const EdgeInsets.all(8), child: Text(individualExternal.toStringAsFixed(2))),
   Padding(padding: const EdgeInsets.all(8), child: Text(formatNumber(individualInternal))),
-        Padding(padding: const EdgeInsets.all(8), child: Text((totals['totalExtremityDose']! / workers).toStringAsFixed(2))),
+        Padding(padding: const EdgeInsets.all(8), child: Text((workers > 0 ? (totals['totalExtremityDose']! / workers) : 0.0).toStringAsFixed(2))),
         Padding(padding: const EdgeInsets.all(8), child: Text(totals['collectiveExternal']!.toStringAsFixed(2))),
   Padding(padding: const EdgeInsets.all(8), child: Text(formatNumber(totals['collectiveInternal']!))),
         Padding(padding: const EdgeInsets.all(8), child: Text(individualTotal.toStringAsFixed(2))),
@@ -986,10 +986,10 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
       final i = entry.key;
       final t = entry.value;
       final totals = calculateTaskTotals(t);
-      final workers = t.workers > 0 ? t.workers : 1;
-      final indExternal = (totals['collectiveExternal']! / workers);
-      final indInternal = (totals['collectiveInternal']! / workers);
-      final indExtremity = (totals['totalExtremityDose']! / workers);
+      final workers = t.workers;
+      final indExternal = workers > 0 ? (totals['collectiveExternal']! / workers) : 0.0;
+      final indInternal = workers > 0 ? (totals['collectiveInternal']! / workers) : 0.0;
+      final indExtremity = workers > 0 ? (totals['totalExtremityDose']! / workers) : 0.0;
       final indTotal = indExternal + indInternal;
 
       return Card(
