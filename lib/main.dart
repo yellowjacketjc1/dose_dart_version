@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:html' as html;
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 void main() {
   runApp(const DoseEstimateApp());
@@ -969,6 +972,494 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
     }
   }
 
+  Future<void> printSummaryReport() async {
+    try {
+      final pdf = pw.Document();
+
+      // Calculate all summary data
+      final computedTriggers = computeGlobalTriggers();
+      final finalTriggers = getFinalTriggerStates();
+
+      double totalIndividualEffective = 0.0;
+      double totalIndividualExtremity = 0.0;
+      double totalCollectiveExternal = 0.0;
+      double totalCollectiveInternal = 0.0;
+
+      final List<Map<String, dynamic>> taskSummaries = [];
+
+      for (final t in tasks) {
+        final totals = calculateTaskTotals(t);
+        final workers = t.workers;
+        final individualExternal = workers > 0 ? (totals['collectiveExternal']! / workers) : 0.0;
+        final individualInternal = workers > 0 ? (totals['collectiveInternal']! / workers) : 0.0;
+        final individualExtremity = workers > 0 ? (totals['totalExtremityDose']! / workers) : 0.0;
+        final individualTotal = individualExternal + individualInternal;
+
+        totalCollectiveExternal += totals['collectiveExternal']!;
+        totalCollectiveInternal += totals['collectiveInternal']!;
+        totalIndividualEffective += individualTotal;
+        totalIndividualExtremity += individualExtremity;
+
+        taskSummaries.add({
+          'task': t,
+          'totals': totals,
+          'individualExternal': individualExternal,
+          'individualInternal': individualInternal,
+          'individualExtremity': individualExtremity,
+          'individualTotal': individualTotal,
+        });
+      }
+
+      final totalCollective = totalCollectiveExternal + totalCollectiveInternal;
+
+      // Page 1: Quick Overview Summary
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.letter,
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Header
+                pw.Container(
+                  padding: const pw.EdgeInsets.only(bottom: 20),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(width: 2)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'RPP-742 Task-Based Dose Assessment',
+                        style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.SizedBox(height: 10),
+                      pw.Text('Work Order: ${workOrderController.text}', style: const pw.TextStyle(fontSize: 12)),
+                      pw.Text('Date: ${dateController.text}', style: const pw.TextStyle(fontSize: 12)),
+                      if (descriptionController.text.isNotEmpty)
+                        pw.Text('Description: ${descriptionController.text}', style: const pw.TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Trigger Indicators
+                pw.Text('Trigger Indicators', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 10),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Row(
+                        children: [
+                          pw.Container(
+                            width: 15,
+                            height: 15,
+                            decoration: pw.BoxDecoration(
+                              color: finalTriggers['alaraReview'] == true
+                                  ? PdfColors.red
+                                  : PdfColors.green,
+                              shape: pw.BoxShape.circle,
+                            ),
+                          ),
+                          pw.SizedBox(width: 8),
+                          pw.Text('ALARA Review', style: const pw.TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.Container(
+                            width: 15,
+                            height: 15,
+                            decoration: pw.BoxDecoration(
+                              color: finalTriggers['airSampling'] == true
+                                  ? PdfColors.red
+                                  : PdfColors.green,
+                              shape: pw.BoxShape.circle,
+                            ),
+                          ),
+                          pw.SizedBox(width: 8),
+                          pw.Text('Air Sampling', style: const pw.TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.Container(
+                            width: 15,
+                            height: 15,
+                            decoration: pw.BoxDecoration(
+                              color: finalTriggers['cams'] == true
+                                  ? PdfColors.red
+                                  : PdfColors.green,
+                              shape: pw.BoxShape.circle,
+                            ),
+                          ),
+                          pw.SizedBox(width: 8),
+                          pw.Text('CAMs', style: const pw.TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Overall Dose Summary
+                pw.Text('Overall Dose Summary', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 10),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(12),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Total Collective Dose: ${totalCollective.toStringAsFixed(2)} person-mrem',
+                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 4),
+                      pw.Text('  External: ${totalCollectiveExternal.toStringAsFixed(2)} person-mrem',
+                          style: const pw.TextStyle(fontSize: 11)),
+                      pw.Text('  Internal: ${formatNumber(totalCollectiveInternal)} person-mrem',
+                          style: const pw.TextStyle(fontSize: 11)),
+                      pw.SizedBox(height: 8),
+                      pw.Text('Total Extremity Dose: ${(totalIndividualExtremity * (tasks.isNotEmpty ? tasks.first.workers : 1)).toStringAsFixed(2)} mrem',
+                          style: const pw.TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 20),
+
+                // Task Summary Table
+                pw.Text('Task Summary', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 10),
+                pw.Table(
+                  border: pw.TableBorder.all(),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(2),
+                    1: const pw.FlexColumnWidth(2),
+                    2: const pw.FlexColumnWidth(1.5),
+                    3: const pw.FlexColumnWidth(1.5),
+                    4: const pw.FlexColumnWidth(1.5),
+                  },
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text('Task', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text('Location', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text('Ind. Ext.\n(mrem)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text('Ind. Int.\n(mrem)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text('Total Ind.\n(mrem)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    ...taskSummaries.map((summary) {
+                      final t = summary['task'] as TaskData;
+                      return pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(t.title, style: const pw.TextStyle(fontSize: 9), softWrap: true),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(t.location, style: const pw.TextStyle(fontSize: 9), softWrap: true),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(summary['individualExternal'].toStringAsFixed(2),
+                                style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(formatNumber(summary['individualInternal']),
+                                style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(6),
+                            child: pw.Text(summary['individualTotal'].toStringAsFixed(2),
+                                style: const pw.TextStyle(fontSize: 9)),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      // Page 2+: Detailed Task Data
+      for (var i = 0; i < taskSummaries.length; i++) {
+        final summary = taskSummaries[i];
+        final t = summary['task'] as TaskData;
+        final totals = summary['totals'] as Map<String, double>;
+
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.letter,
+            build: (pw.Context context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  // Task Header
+                  pw.Container(
+                    padding: const pw.EdgeInsets.only(bottom: 12),
+                    decoration: const pw.BoxDecoration(
+                      border: pw.Border(bottom: pw.BorderSide(width: 2)),
+                    ),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          child: pw.Text(
+                            'Task ${i + 1}: ${t.title}',
+                            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                            softWrap: true,
+                          ),
+                        ),
+                        pw.SizedBox(width: 8),
+                        pw.Text(
+                          'Page ${i + 2}',
+                          style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(height: 16),
+
+                  // Task Details
+                  pw.Text('Task Details', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 8),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey400),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Row(
+                          children: [
+                            pw.Expanded(child: pw.Text('Location: ${t.location}', style: const pw.TextStyle(fontSize: 10))),
+                            pw.Expanded(child: pw.Text('Workers: ${t.workers}', style: const pw.TextStyle(fontSize: 10))),
+                            pw.Expanded(child: pw.Text('Hours: ${t.hours}', style: const pw.TextStyle(fontSize: 10))),
+                          ],
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Row(
+                          children: [
+                            pw.Expanded(child: pw.Text('External Dose Rate: ${t.doseRate} mrem/hr', style: const pw.TextStyle(fontSize: 10))),
+                            pw.Expanded(child: pw.Text('PFR: ${t.pfr}', style: const pw.TextStyle(fontSize: 10))),
+                            pw.Expanded(child: pw.Text('PFE: ${t.pfe}', style: const pw.TextStyle(fontSize: 10))),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(height: 12),
+
+                  // Material Protection Factors
+                  pw.Text('Material Protection Factors', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 6),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey400),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    ),
+                    child: pw.Text(
+                      'R: ${t.mpifR}  C: ${t.mpifC}  D: ${t.mpifD}  S: ${t.mpifS}  U: ${t.mpifU}',
+                      style: const pw.TextStyle(fontSize: 9),
+                    ),
+                  ),
+                  pw.SizedBox(height: 12),
+
+                  // Nuclide Information
+                  if (t.nuclides.isNotEmpty) ...[
+                    pw.Text('Nuclide Contamination', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 6),
+                    pw.Table(
+                      border: pw.TableBorder.all(color: PdfColors.grey400),
+                      children: [
+                        pw.TableRow(
+                          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                          children: [
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('Nuclide', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('Contamination\n(dpm/100cm²)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('DAC Fraction', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        ...t.nuclides.map((n) {
+                          final res = computeNuclideDose(n, t);
+                          return pw.TableRow(
+                            children: [
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(n.name, style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(formatNumber(n.contam), style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(formatNumber(res['dacFractionEngOnly']!), style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                    pw.SizedBox(height: 12),
+                  ],
+
+                  // Extremity Information
+                  if (t.extremities.isNotEmpty) ...[
+                    pw.Text('Extremity Exposure', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 6),
+                    pw.Table(
+                      border: pw.TableBorder.all(color: PdfColors.grey400),
+                      children: [
+                        pw.TableRow(
+                          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                          children: [
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('Nuclide', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('Dose Rate\n(mrem/hr)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('Time\n(hours)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text('Total\n(mrem)', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        ...t.extremities.map((e) {
+                          return pw.TableRow(
+                            children: [
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(e.nuclide ?? '', style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(e.doseRate.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(e.time.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text((e.doseRate * e.time).toStringAsFixed(2), style: const pw.TextStyle(fontSize: 9)),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                    pw.SizedBox(height: 12),
+                  ],
+
+                  // Dose Summary for this Task
+                  pw.Text('Dose Summary', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 6),
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.grey100,
+                      border: pw.Border.all(color: PdfColors.grey400),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Individual Doses:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('  External: ${summary['individualExternal'].toStringAsFixed(2)} mrem', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text('  Internal: ${formatNumber(summary['individualInternal'])} mrem', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text('  Extremity: ${summary['individualExtremity'].toStringAsFixed(2)} mrem', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text('  Total Effective: ${summary['individualTotal'].toStringAsFixed(2)} mrem',
+                            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 6),
+                        pw.Text('Collective Doses:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('  External: ${totals['collectiveExternal']!.toStringAsFixed(2)} person-mrem', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text('  Internal: ${formatNumber(totals['collectiveInternal']!)} person-mrem', style: const pw.TextStyle(fontSize: 9)),
+                        pw.Text('  Total Effective: ${totals['collectiveEffective']!.toStringAsFixed(2)} person-mrem',
+                            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      // Print the PDF
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Print dialog opened')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to print: $e')),
+        );
+      }
+    }
+  }
+
 
   Widget buildSummary() {
     double totalIndividualEffective = 0.0;
@@ -1411,7 +1902,7 @@ class _DoseHomePageState extends State<DoseHomePage> with TickerProviderStateMix
         actions: [
           IconButton(onPressed: saveToFile, icon: const Icon(Icons.save)),
           IconButton(onPressed: loadFromFile, icon: const Icon(Icons.folder_open)),
-          IconButton(onPressed: () => print('print'), icon: const Icon(Icons.print)),
+          IconButton(onPressed: printSummaryReport, icon: const Icon(Icons.print)),
           IconButton(onPressed: () {
             // Diagnostic dialog: show per-nuclide computed fields for the first task (or a sample)
             final t = tasks.isNotEmpty ? tasks.first : TaskData(title: 'Sample', location: 'Lab', workers: 1, hours: 15.0, mpifR: 1.0, mpifC: 100.0, mpifD: 1.0, mpifS: 1.0, mpifU: 1.0, doseRate: 0.0, pfr: 1.0, pfe: 1.0, nuclides: [NuclideEntry(name: 'Sr-90', contam: 100000.0)]);
